@@ -382,9 +382,23 @@ impl Thumbnail {
         let clip = move |elem| match elem {
             LayoutElementRenderElement::Wayland(elem) => {
                 if let Some(shader) = clip_shader.clone() {
-                    if ClippedSurfaceRenderElement::will_clip(&elem, s, geo, radius) {
+                    let liquid = mapped.rules().background_effect.foreground_liquid.unwrap_or(mapped.rules().background_effect.liquid.unwrap_or(false));
+                    if liquid || ClippedSurfaceRenderElement::will_clip(&elem, s, geo, radius) {
                         let elem =
-                            ClippedSurfaceRenderElement::new(elem, s, geo, shader.clone(), radius);
+                            ClippedSurfaceRenderElement::new(
+                                elem,
+                                s,
+                                geo,
+                                shader.clone(),
+                                radius,
+                                liquid,
+                                mapped.rules().background_effect.foreground_refraction.unwrap_or(mapped.rules().background_effect.refraction.unwrap_or(0.0)) as f32,
+                                mapped.rules().background_effect.foreground_chromatic_aberration.unwrap_or(mapped.rules().background_effect.chromatic_aberration.unwrap_or(0.0)) as f32,
+                                mapped.rules().background_effect.noise.unwrap_or(0.0) as f32,
+                                mapped.rules().background_effect.saturation.unwrap_or(1.0) as f32,
+                                mapped.rules().background_effect.specular.unwrap_or(0.0) as f32,
+                                mapped.rules().background_effect.edge_highlight.unwrap_or(0.0) as f32,
+                            );
                         return ThumbnailRenderElement::ClippedSurface(elem);
                     }
                 }

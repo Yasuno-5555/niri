@@ -22,6 +22,13 @@ pub struct ClippedSurfaceRenderElement<R: NiriRenderer> {
     corner_radius: CornerRadius,
     geometry: Rectangle<f64, Logical>,
     scale: f32,
+    liquid: bool,
+    refraction: f32,
+    chromatic_aberration: f32,
+    noise: f32,
+    saturation: f32,
+    specular: f32,
+    edge_highlight: f32,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -37,6 +44,13 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
         geometry: Rectangle<f64, Logical>,
         program: GlesTexProgram,
         corner_radius: CornerRadius,
+        liquid: bool,
+        refraction: f32,
+        chromatic_aberration: f32,
+        noise: f32,
+        saturation: f32,
+        specular: f32,
+        edge_highlight: f32,
     ) -> Self {
         Self {
             inner: elem,
@@ -44,6 +58,13 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
             corner_radius,
             geometry,
             scale: scale.x as f32,
+            liquid,
+            refraction,
+            chromatic_aberration,
+            noise,
+            saturation,
+            specular,
+            edge_highlight,
         }
     }
 
@@ -91,12 +112,23 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
 
         let geo_size = (self.geometry.size.w as f32, self.geometry.size.h as f32);
 
-        vec![
+        let mut uniforms = vec![
             Uniform::new("niri_scale", self.scale),
             Uniform::new("geo_size", geo_size),
             Uniform::new("corner_radius", <[f32; 4]>::from(self.corner_radius)),
             mat3_uniform("input_to_geo", input_to_geo),
-        ]
+        ];
+
+        uniforms.push(Uniform::new("liquid", if self.liquid { 1.0f32 } else { 0.0f32 }));
+        uniforms.push(Uniform::new("refraction", self.refraction));
+        uniforms.push(Uniform::new("chromatic_aberration", self.chromatic_aberration));
+        uniforms.push(Uniform::new("noise", self.noise));
+        uniforms.push(Uniform::new("saturation", self.saturation));
+        uniforms.push(Uniform::new("bg_color", [0f32, 0., 0., 0.]));
+        uniforms.push(Uniform::new("specular", self.specular));
+        uniforms.push(Uniform::new("edge_highlight", self.edge_highlight));
+
+        uniforms
     }
 
     pub fn shader(renderer: &mut R) -> Option<&GlesTexProgram> {

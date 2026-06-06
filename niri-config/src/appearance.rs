@@ -1075,6 +1075,12 @@ pub struct BackgroundEffectRule {
     pub specular: Option<FloatOrInt<0, 1000>>,
     #[knuffel(child, unwrap(argument))]
     pub chromatic_aberration: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub foreground_liquid: Option<bool>,
+    #[knuffel(child, unwrap(argument))]
+    pub foreground_refraction: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub foreground_chromatic_aberration: Option<FloatOrInt<0, 1000>>,
 }
 
 /// Resolved background effect rule.
@@ -1102,11 +1108,14 @@ pub struct BackgroundEffect {
     pub edge_highlight: Option<f64>,
     pub specular: Option<f64>,
     pub chromatic_aberration: Option<f64>,
+    pub foreground_liquid: Option<bool>,
+    pub foreground_refraction: Option<f64>,
+    pub foreground_chromatic_aberration: Option<f64>,
 }
 
 impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
     fn merge_with(&mut self, part: &BackgroundEffectRule) {
-        merge_clone_opt!((self, part), xray, blur, liquid);
+        merge_clone_opt!((self, part), xray, blur, liquid, foreground_liquid);
 
         if let Some(x) = part.noise {
             self.noise = Some(x.0);
@@ -1130,6 +1139,14 @@ impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
 
         if let Some(x) = part.chromatic_aberration {
             self.chromatic_aberration = Some(x.0);
+        }
+
+        if let Some(x) = part.foreground_refraction {
+            self.foreground_refraction = Some(x.0);
+        }
+
+        if let Some(x) = part.foreground_chromatic_aberration {
+            self.foreground_chromatic_aberration = Some(x.0);
         }
     }
 }

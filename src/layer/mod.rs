@@ -1,4 +1,4 @@
-use niri_config::layer_rule::{LayerRule, Match};
+use niri_config::layer_rule::{LayerRule, Match, LayerAnimationRule};
 use niri_config::utils::MergeWith as _;
 use niri_config::{BackgroundEffect, BlockOutFrom, CornerRadius, ResolvedPopupsRules, ShadowRule};
 use smithay::desktop::LayerSurface;
@@ -33,6 +33,9 @@ pub struct ResolvedLayerRules {
 
     /// Rules for this layer surface's popups.
     pub popups: ResolvedPopupsRules,
+
+    pub animation_open: Option<LayerAnimationRule>,
+    pub animation_close: Option<LayerAnimationRule>,
 }
 
 impl ResolvedLayerRules {
@@ -115,6 +118,13 @@ impl ResolvedLayerRules {
                 resolved.baba_is_float = x;
             }
 
+            if let Some(x) = &rule.animation_open {
+                resolved.animation_open = Some(x.clone());
+            }
+            if let Some(x) = &rule.animation_close {
+                resolved.animation_close = Some(x.clone());
+            }
+
             resolved.shadow.merge_with(&rule.shadow);
 
             resolved
@@ -127,6 +137,7 @@ impl ResolvedLayerRules {
         resolved
     }
 }
+
 
 fn surface_matches(surface: &LayerSurface, m: &Match) -> bool {
     if let Some(namespace_re) = &m.namespace {

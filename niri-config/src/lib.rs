@@ -230,6 +230,14 @@ where
                 "animation-profile" => m_push!(animation_profiles),
                 "scratch-column" => m_push!(scratch_columns),
                 "workspace" => m_push!(workspaces),
+                "active-animation-profile" => {
+                    let mut iter = node.arguments.iter();
+                    let val = iter.next().ok_or_else(|| {
+                        DecodeError::missing(node, "argument is required")
+                    })?;
+                    let profile_name: String = knuffel::traits::DecodeScalar::decode(val, ctx)?;
+                    config.borrow_mut().active_animation_profile = Some(profile_name);
+                }
 
                 // Single-part sections.
                 "binds" => {

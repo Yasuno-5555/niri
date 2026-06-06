@@ -664,7 +664,7 @@ fn resolve_animation_preset(name: &str) -> Option<niri_config::animations::Anima
                 curve: Curve::EaseOutCubic,
             }),
         }),
-        "slide-glass" => Some(niri_config::animations::Animation {
+        "slide-glass" | "glass-slide" => Some(niri_config::animations::Animation {
             off: false,
             kind: Kind::Easing(EasingParams {
                 duration_ms: 180,
@@ -700,23 +700,177 @@ fn resolve_animation_preset(name: &str) -> Option<niri_config::animations::Anima
                 curve: Curve::EaseOutExpo,
             }),
         }),
-        "fast-fade" => Some(niri_config::animations::Animation {
+        "soft-pop" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Spring(SpringParams {
+                damping_ratio: 0.78,
+                stiffness: 900,
+                epsilon: 0.0001,
+            }),
+        }),
+        "fade-shrink" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 180,
+                curve: Curve::EaseOutQuad,
+            }),
+        }),
+        "calm-zoom" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 220,
+                curve: Curve::EaseOutCubic,
+            }),
+        }),
+        "smooth-scroll" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Spring(SpringParams {
+                damping_ratio: 0.82,
+                stiffness: 1000,
+                epsilon: 0.0001,
+            }),
+        }),
+        "elastic-glass" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Spring(SpringParams {
+                damping_ratio: 0.60,
+                stiffness: 800,
+                epsilon: 0.0001,
+            }),
+        }),
+        "deep-zoom-blur" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Spring(SpringParams {
+                damping_ratio: 0.70,
+                stiffness: 850,
+                epsilon: 0.0001,
+            }),
+        }),
+        "inertial-wave" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Spring(SpringParams {
+                damping_ratio: 0.65,
+                stiffness: 750,
+                epsilon: 0.0001,
+            }),
+        }),
+        "minimal-slide" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 120,
+                curve: Curve::EaseOutQuad,
+            }),
+        }),
+        "simple" => Some(niri_config::animations::Animation {
             off: false,
             kind: Kind::Easing(EasingParams {
                 duration_ms: 100,
-                curve: Curve::Linear,
+                curve: Curve::EaseOutQuad,
+            }),
+        }),
+        "fast-fade" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 90,
+                curve: Curve::EaseOutQuad,
             }),
         }),
         "calm" => Some(niri_config::animations::Animation {
             off: false,
             kind: Kind::Easing(EasingParams {
-                duration_ms: 250,
+                duration_ms: 120,
                 curve: Curve::EaseOutQuad,
             }),
         }),
-        _ => None,
+        "instant-fade" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 30,
+                curve: Curve::EaseOutQuad,
+            }),
+        }),
+        "none" => Some(niri_config::animations::Animation {
+            off: true,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 0,
+                curve: Curve::EaseOutQuad,
+            }),
+        }),
+        "reduced" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 80,
+                curve: Curve::EaseOutQuad,
+            }),
+        }),
+        _ => {
+            if name.starts_with("spring ") {
+                let mut damping_ratio = None;
+                let mut stiffness = None;
+                let mut epsilon = 0.0001;
+                for part in name["spring ".len()..].split_whitespace() {
+                    if let Some((k, v)) = part.split_once('=') {
+                        match k {
+                            "damping-ratio" | "damping_ratio" => {
+                                damping_ratio = v.parse::<f64>().ok();
+                            }
+                            "stiffness" => {
+                                stiffness = v.parse::<u32>().ok();
+                            }
+                            "epsilon" => {
+                                epsilon = v.parse::<f64>().unwrap_or(0.0001);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                if let (Some(damping_ratio), Some(stiffness)) = (damping_ratio, stiffness) {
+                    return Some(niri_config::animations::Animation {
+                        off: false,
+                        kind: Kind::Spring(SpringParams {
+                            damping_ratio,
+                            stiffness,
+                            epsilon,
+                        }),
+                    });
+                }
+            } else if name.starts_with("easing ") {
+                let mut duration_ms = None;
+                let mut curve = Curve::EaseOutQuad;
+                for part in name["easing ".len()..].split_whitespace() {
+                    if let Some((k, v)) = part.split_once('=') {
+                        match k {
+                            "duration-ms" | "duration_ms" | "duration" => {
+                                duration_ms = v.parse::<u32>().ok();
+                            }
+                            "curve" => {
+                                curve = match v {
+                                    "linear" => Curve::Linear,
+                                    "ease-out-quad" | "ease_out_quad" => Curve::EaseOutQuad,
+                                    "ease-out-cubic" | "ease_out_cubic" => Curve::EaseOutCubic,
+                                    "ease-out-expo" | "ease_out_expo" => Curve::EaseOutExpo,
+                                    _ => Curve::EaseOutQuad,
+                                };
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                if let Some(duration_ms) = duration_ms {
+                    return Some(niri_config::animations::Animation {
+                        off: false,
+                        kind: Kind::Easing(EasingParams {
+                            duration_ms,
+                            curve,
+                        }),
+                    });
+                }
+            }
+            None
+        }
     }
 }
+
 
 impl Options {
     fn from_config(config: &Config) -> Self {

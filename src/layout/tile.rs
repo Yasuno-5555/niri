@@ -1175,13 +1175,21 @@ impl<W: LayoutElement> Tile<W> {
                     // If we should clip to geometry, render a clipped window.
                     if clip_to_geometry {
                         if let Some(shader) = clip_shader.clone() {
-                            if ClippedSurfaceRenderElement::will_clip(&elem, scale, geo, radius) {
+                            let liquid = rules.background_effect.foreground_liquid.unwrap_or(rules.background_effect.liquid.unwrap_or(false));
+                            if liquid || ClippedSurfaceRenderElement::will_clip(&elem, scale, geo, radius) {
                                 return ClippedSurfaceRenderElement::new(
                                     elem,
                                     scale,
                                     geo,
                                     shader.clone(),
                                     radius,
+                                    liquid,
+                                    rules.background_effect.foreground_refraction.unwrap_or(rules.background_effect.refraction.unwrap_or(0.0)) as f32,
+                                    rules.background_effect.foreground_chromatic_aberration.unwrap_or(rules.background_effect.chromatic_aberration.unwrap_or(0.0)) as f32,
+                                    rules.background_effect.noise.unwrap_or(0.0) as f32,
+                                    rules.background_effect.saturation.unwrap_or(1.0) as f32,
+                                    rules.background_effect.specular.unwrap_or(0.0) as f32,
+                                    rules.background_effect.edge_highlight.unwrap_or(0.0) as f32,
                                 )
                                 .into();
                             }

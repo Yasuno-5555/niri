@@ -65,6 +65,9 @@ pub struct MappedLayer {
 
     /// Ongoing Y-axis geometry interpolation.
     move_y_animation: Option<MoveAnimation>,
+
+    resolved_animation_open: Option<niri_config::layer_rule::LayerAnimationRule>,
+    open_animation: Option<Animation>,
 }
 
 #[derive(Debug)]
@@ -97,6 +100,54 @@ impl MappedLayer {
         shadow_config.on = false;
         shadow_config.merge_with(&rules.shadow);
 
+        let resolved_animation_open = rules.animation_open.clone().or_else(|| {
+            config.active_animation_profile.as_ref()
+                .and_then(|profile_name| config.animation_profiles.iter().find(|p| &p.name == profile_name))
+                .and_then(|profile| profile.layer_open.as_ref())
+                .map(|preset_name| {
+                    let (style, from_scale, direction, duration_ms, curve) = match preset_name.as_str() {
+                        "scale-fade" => (Some("scale-fade".to_owned()), Some(niri_config::FloatOrInt(0.95)), None, Some(140), Some("ease-out-expo".to_owned())),
+                        "fade-slide" => (Some("fade-slide".to_owned()), None, Some("down".to_owned()), Some(100), None),
+                        "slide-glass" => (Some("slide-glass".to_owned()), None, Some("down".to_owned()), Some(150), None),
+                        "elastic-glass" => (Some("scale-fade".to_owned()), Some(niri_config::FloatOrInt(0.90)), None, Some(200), None),
+                        "glass-slide" => (Some("fade-slide".to_owned()), None, Some("bottom".to_owned()), Some(160), None),
+                        _ => (Some("fade".to_owned()), None, None, Some(120), None),
+                    };
+                    niri_config::layer_rule::LayerAnimationRule {
+                        style,
+                        from_scale,
+                        direction,
+                        duration_ms,
+                        curve,
+                    }
+                })
+        });
+
+        let mut open_animation = None;
+        if let Some(rule) = &resolved_animation_open {
+            let kind = if let Some(curve_str) = &rule.curve {
+                let curve = match curve_str.as_str() {
+                    "linear" => niri_config::animations::Curve::Linear,
+                    "ease-out-quad" => niri_config::animations::Curve::EaseOutQuad,
+                    "ease-out-cubic" => niri_config::animations::Curve::EaseOutCubic,
+                    "ease-out-expo" => niri_config::animations::Curve::EaseOutExpo,
+                    _ => niri_config::animations::Curve::EaseOutCubic,
+                };
+                niri_config::animations::Kind::Easing(niri_config::animations::EasingParams {
+                    duration_ms: rule.duration_ms.unwrap_or(150),
+                    curve,
+                })
+            } else {
+                niri_config::animations::Kind::Spring(niri_config::animations::SpringParams {
+                    damping_ratio: 0.75,
+                    stiffness: 900,
+                    epsilon: 0.0001,
+                })
+            };
+            let anim_config = niri_config::animations::Animation { off: false, kind };
+            open_animation = Some(Animation::new(clock.clone(), 0.0, 1.0, 0.0, anim_config));
+        }
+
         Self {
             surface,
             pre_commit_hook,
@@ -112,6 +163,8 @@ impl MappedLayer {
             last_arranged_location: None,
             move_x_animation: None,
             move_y_animation: None,
+            resolved_animation_open,
+            open_animation,
         }
     }
 
@@ -124,6 +177,29 @@ impl MappedLayer {
 
         self.blur_config = config.blur;
         self.move_animation_config = config.animations.window_movement.0;
+
+        self.resolved_animation_open = self.rules.animation_open.clone().or_else(|| {
+            config.active_animation_profile.as_ref()
+                .and_then(|profile_name| config.animation_profiles.iter().find(|p| &p.name == profile_name))
+                .and_then(|profile| profile.layer_open.as_ref())
+                .map(|preset_name| {
+                    let (style, from_scale, direction, duration_ms, curve) = match preset_name.as_str() {
+                        "scale-fade" => (Some("scale-fade".to_owned()), Some(niri_config::FloatOrInt(0.95)), None, Some(140), Some("ease-out-expo".to_owned())),
+                        "fade-slide" => (Some("fade-slide".to_owned()), None, Some("down".to_owned()), Some(100), None),
+                        "slide-glass" => (Some("slide-glass".to_owned()), None, Some("down".to_owned()), Some(150), None),
+                        "elastic-glass" => (Some("scale-fade".to_owned()), Some(niri_config::FloatOrInt(0.90)), None, Some(200), None),
+                        "glass-slide" => (Some("fade-slide".to_owned()), None, Some("bottom".to_owned()), Some(160), None),
+                        _ => (Some("fade".to_owned()), None, None, Some(120), None),
+                    };
+                    niri_config::layer_rule::LayerAnimationRule {
+                        style,
+                        from_scale,
+                        direction,
+                        duration_ms,
+                        curve,
+                    }
+                })
+        });
     }
 
     pub fn update_shaders(&mut self) {
@@ -156,6 +232,7 @@ impl MappedLayer {
         self.rules.baba_is_float
             || self.move_x_animation.is_some()
             || self.move_y_animation.is_some()
+            || self.open_animation.is_some()
     }
 
     pub fn surface(&self) -> &LayerSurface {
@@ -229,6 +306,11 @@ impl MappedLayer {
                 self.move_y_animation = None;
             }
         }
+        if let Some(open) = &self.open_animation {
+            if open.is_done() {
+                self.open_animation = None;
+            }
+        }
     }
 
     fn render_offset(&self) -> Point<f64, Logical> {
@@ -300,11 +382,51 @@ impl MappedLayer {
         push: &mut dyn FnMut(LayerSurfaceRenderElement<R>),
     ) {
         let scale = Scale::from(self.scale);
-        let alpha = self.rules.opacity.unwrap_or(1.).clamp(0., 1.);
+        let mut alpha = self.rules.opacity.unwrap_or(1.).clamp(0., 1.);
 
-        let render_offset = self.render_offset() + self.bob_offset();
-        let location = location + render_offset;
+        let mut open_scale = 1.0f64;
+        let mut open_offset = Point::new(0.0, 0.0);
+
+        if let Some(open) = &self.open_animation {
+            let progress = open.value();
+            if let Some(rule) = &self.resolved_animation_open {
+                let style = rule.style.as_deref().unwrap_or("fade");
+                
+                if style.contains("fade") {
+                    alpha *= progress as f32;
+                }
+                
+                if style.contains("scale") {
+                    let from = rule.from_scale.map(|s| s.0).unwrap_or(0.95);
+                    open_scale = from + (1.0 - from) * progress;
+                }
+                
+                if style.contains("slide") {
+                    let dir = rule.direction.as_deref().unwrap_or("down");
+                    let slide_dist = 50.0;
+                    let offset_val = slide_dist * (1.0 - progress);
+                    match dir {
+                        "down" => open_offset.y += offset_val,
+                        "up" => open_offset.y -= offset_val,
+                        "left" => open_offset.x -= offset_val,
+                        "right" => open_offset.x += offset_val,
+                        "bottom" => open_offset.y += offset_val,
+                        "top" => open_offset.y -= offset_val,
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        let render_offset = self.render_offset() + self.bob_offset() + open_offset;
+        let mut location = location + render_offset;
         let xray_pos = xray_pos.offset(render_offset);
+
+        if open_scale != 1.0 {
+            let size = self.block_out_buffer.size();
+            location.x += size.w * (1.0 - open_scale) / 2.0;
+            location.y += size.h * (1.0 - open_scale) / 2.0;
+        }
 
         let surface = self.surface.wl_surface();
 
@@ -324,12 +446,13 @@ impl MappedLayer {
         } else {
             // Layer surfaces don't have extra geometry like windows.
             let buf_pos = location;
+            let element_scale = scale * Scale::from(open_scale);
 
             push_elements_from_surface_tree(
                 ctx.renderer,
                 surface,
                 buf_pos.to_physical_precise_round(scale),
-                scale,
+                element_scale,
                 alpha,
                 Kind::ScanoutCandidate,
                 &mut |elem| push(elem.into()),
@@ -342,7 +465,7 @@ impl MappedLayer {
 
         let geometry = Rectangle::new(location, self.block_out_buffer.size());
         let surface_off = Point::new(0., 0.); // No geometry on layer surfaces.
-        let surface_anim_scale = Scale::from(1.);
+        let surface_anim_scale = Scale::from(open_scale);
         let radius = self.rules.geometry_corner_radius.unwrap_or_default();
         background_effect::render_for_tile(
             ctx.as_gles(),
