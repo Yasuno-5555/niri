@@ -1402,6 +1402,40 @@ impl<W: LayoutElement> Layout<W> {
         None
     }
 
+    pub fn ensure_named_workspace_on_active_monitor(&mut self, workspace_name: String) -> Option<usize> {
+        let MonitorSet::Normal {
+            monitors,
+            active_monitor_idx,
+            ..
+        } = &mut self.monitor_set
+        else {
+            return None;
+        };
+
+        let monitor = &mut monitors[*active_monitor_idx];
+        if let Some(idx) = monitor.find_named_workspace_index(&workspace_name) {
+            return Some(idx);
+        }
+
+        let mut idx = monitor.workspaces.len().checked_sub(1)?;
+        if monitor.workspaces[idx].has_windows_or_name() {
+            monitor.add_workspace_bottom();
+            idx = monitor.workspaces.len().checked_sub(1)?;
+        }
+
+        monitor.workspaces[idx].name.replace(workspace_name);
+
+        if idx == monitor.workspaces.len() - 1 {
+            monitor.add_workspace_bottom();
+        }
+        if monitor.options.layout.empty_workspace_above_first && idx == 0 {
+            monitor.add_workspace_top();
+            idx += 1;
+        }
+
+        Some(idx)
+    }
+
     pub fn find_workspace_by_ref(
         &mut self,
         reference: WorkspaceReference,

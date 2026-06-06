@@ -192,6 +192,11 @@ const CLEAR_COLOR_LOCKED: [f32; 4] = [0.3, 0.1, 0.1, 1.];
 // should be ~1.995 seconds.
 const FRAME_CALLBACK_THROTTLE: Option<Duration> = Some(Duration::from_millis(995));
 
+#[derive(Debug, Clone, Copy)]
+struct ScratchColumnRuntime {
+    source_workspace_id: WorkspaceId,
+}
+
 pub struct Niri {
     pub config: Rc<RefCell<Config>>,
 
@@ -211,6 +216,8 @@ pub struct Niri {
 
     /// Whether niri was run with `--session`
     pub is_session_instance: bool,
+
+    scratch_columns: HashMap<String, ScratchColumnRuntime>,
 
     /// Name of the Wayland socket.
     ///
@@ -2505,6 +2512,7 @@ impl Niri {
             socket_name,
             display_handle,
             is_session_instance,
+            scratch_columns: HashMap::new(),
             start_time: Instant::now(),
             is_at_startup: true,
             clock: animation_clock,
@@ -3607,6 +3615,100 @@ impl Niri {
 
         let target_output = target_workspace.current_output();
         Some((target_output.cloned(), target_workspace_index))
+    }
+
+    fn scratch_workspace_name(name: &str) -> String {
+        format!("__scratch_{name}")
+    }
+
+    pub fn toggle_scratch_column(&mut self, name: &str) -> bool {
+        let config = self.config.borrow();
+        let scratch_exists = config.scratch_columns.iter().any(|col| col.name == name);
+        drop(config);
+
+        if !scratch_exists {
+            warn!("scratch column `{name}` is not configured");
+            return false;
+        }
+
+        let scratch_workspace_name = Self::scratch_workspace_name(name);
+        let active_workspace = match self.layout.active_workspace() {
+            Some(workspace) => workspace,
+            None => return false,
+        };
+        let active_workspace_id = active_workspace.id();
+        let active_is_scratch = active_workspace
+            .name()
+            .is_some_and(|workspace_name| workspace_name == &scratch_workspace_name);
+
+        if active_is_scratch {
+            let Some(runtime) = self.scratch_columns.remove(name) else {
+                warn!("scratch column `{name}` has no recorded source workspace");
+                return false;
+            };
+            let Some((source_idx, source_workspace)) =
+                self.layout.find_workspace_by_id(runtime.source_workspace_id)
+            else {
+                warn!("scratch column `{name}` source workspace disappeared");
+                return false;
+            };
+            let source_output = source_workspace.current_output().cloned();
+
+            if let Some(output) = source_output.as_ref() {
+                self.layout.focus_output(output);
+            }
+            self.layout.move_column_to_workspace(source_idx, true);
+            self.layout.switch_workspace(source_idx);
+
+            if let Some((_, scratch_workspace)) =
+                self.layout.find_workspace_by_name(&scratch_workspace_name)
+            {
+                if !scratch_workspace.has_windows() {
+                    self.layout.unname_workspace(&scratch_workspace_name);
+                }
+            }
+
+            return true;
+        }
+
+        if let Some((scratch_idx, scratch_output)) = self
+            .layout
+            .find_workspace_by_name(&scratch_workspace_name)
+            .and_then(|(idx, workspace)| {
+                workspace
+                    .has_windows()
+                    .then(|| (idx, workspace.current_output().cloned()))
+            })
+        {
+            self.scratch_columns.insert(
+                name.to_owned(),
+                ScratchColumnRuntime {
+                    source_workspace_id: active_workspace_id,
+                },
+            );
+
+            if let Some(output) = scratch_output.as_ref() {
+                self.layout.focus_output(output);
+            }
+            self.layout.switch_workspace(scratch_idx);
+            return true;
+        }
+
+        let Some(scratch_idx) = self
+            .layout
+            .ensure_named_workspace_on_active_monitor(scratch_workspace_name)
+        else {
+            return false;
+        };
+
+        self.scratch_columns.insert(
+            name.to_owned(),
+            ScratchColumnRuntime {
+                source_workspace_id: active_workspace_id,
+            },
+        );
+        self.layout.move_column_to_workspace(scratch_idx, true);
+        true
     }
 
     pub fn find_window_by_id(&self, id: MappedId) -> Option<Window> {

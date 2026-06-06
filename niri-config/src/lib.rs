@@ -177,6 +177,7 @@ where
                     | "material"
                     | "effect-preset"
                     | "animation-profile"
+                    | "scratch-column"
             ) && !seen.insert(name)
             {
                 ctx.emit_error(DecodeError::unexpected(
@@ -227,6 +228,7 @@ where
                 "material" => m_push!(materials),
                 "effect-preset" => m_push!(effect_presets),
                 "animation-profile" => m_push!(animation_profiles),
+                "scratch-column" => m_push!(scratch_columns),
                 "workspace" => m_push!(workspaces),
 
                 // Single-part sections.

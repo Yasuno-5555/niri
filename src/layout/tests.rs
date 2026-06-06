@@ -3282,6 +3282,91 @@ fn set_last_workspace_name() {
 }
 
 #[test]
+fn ensure_named_workspace_on_active_monitor_uses_last_empty_workspace() {
+    let mut layout = Layout::default();
+
+    Op::AddOutput(0).apply(&mut layout);
+
+    let idx = layout
+        .ensure_named_workspace_on_active_monitor("__scratch_terminal".into())
+        .unwrap();
+    assert_eq!(idx, 0);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!();
+    };
+
+    assert_eq!(monitors[0].workspaces.len(), 2);
+    assert_eq!(
+        monitors[0].workspaces[0].name().map(String::as_str),
+        Some("__scratch_terminal")
+    );
+    assert_eq!(monitors[0].workspaces[1].name().map(String::as_str), None);
+    layout.verify_invariants();
+}
+
+#[test]
+fn ensure_named_workspace_on_active_monitor_preserves_empty_workspace_above_first() {
+    let options = Options {
+        layout: niri_config::Layout {
+            empty_workspace_above_first: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut layout = Layout::with_options(Clock::with_time(Duration::ZERO), options.into());
+
+    Op::AddOutput(0).apply(&mut layout);
+
+    let idx = layout
+        .ensure_named_workspace_on_active_monitor("__scratch_terminal".into())
+        .unwrap();
+    assert_eq!(idx, 1);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!();
+    };
+
+    assert_eq!(monitors[0].workspaces.len(), 3);
+    assert_eq!(monitors[0].workspaces[0].name().map(String::as_str), None);
+    assert_eq!(
+        monitors[0].workspaces[1].name().map(String::as_str),
+        Some("__scratch_terminal")
+    );
+    assert_eq!(monitors[0].workspaces[2].name().map(String::as_str), None);
+    layout.verify_invariants();
+}
+
+#[test]
+fn ensure_named_workspace_on_active_monitor_reuses_existing_workspace() {
+    let ops = [
+        Op::AddOutput(0),
+        Op::SetWorkspaceName {
+            new_ws_name: 7,
+            ws_name: None,
+        },
+    ];
+    let mut layout = check_ops(ops);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!();
+    };
+    let initial_len = monitors[0].workspaces.len();
+
+    let idx = layout
+        .ensure_named_workspace_on_active_monitor("ws7".into())
+        .unwrap();
+    assert_eq!(idx, 0);
+
+    let MonitorSet::Normal { monitors, .. } = &layout.monitor_set else {
+        unreachable!();
+    };
+    assert_eq!(monitors[0].workspaces.len(), initial_len);
+    assert_eq!(monitors[0].workspaces[0].name().map(String::as_str), Some("ws7"));
+    layout.verify_invariants();
+}
+
+#[test]
 fn move_workspace_to_same_monitor_doesnt_reorder() {
     let ops = [
         Op::AddOutput(0),

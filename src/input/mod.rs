@@ -2417,7 +2417,11 @@ impl State {
                 self.niri.queue_redraw_all();
             }
             Action::ToggleScratchColumn(name) => {
-                log::info!("Toggle scratch column request: {}", name);
+                if self.niri.toggle_scratch_column(&name) {
+                    self.maybe_warp_cursor_to_focus();
+                    self.niri.layer_shell_on_demand_focus = None;
+                    self.niri.queue_redraw_all();
+                }
             }
             Action::SetMaterial(material_name) => {
                 let focus_ptr = self.niri.layout.focus().map(|fw| fw as *const crate::window::Mapped);
