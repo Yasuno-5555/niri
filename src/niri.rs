@@ -192,9 +192,10 @@ const CLEAR_COLOR_LOCKED: [f32; 4] = [0.3, 0.1, 0.1, 1.];
 // should be ~1.995 seconds.
 const FRAME_CALLBACK_THROTTLE: Option<Duration> = Some(Duration::from_millis(995));
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ScratchColumnRuntime {
     source_workspace_id: WorkspaceId,
+    return_workspace_name: String,
 }
 
 pub struct Niri {
@@ -3621,6 +3622,10 @@ impl Niri {
         format!("__scratch_{name}")
     }
 
+    fn scratch_return_name(name: &str) -> String {
+        format!("__scratch_return_{name}")
+    }
+
     pub fn toggle_scratch_column(&mut self, name: &str) -> bool {
         let config = self.config.borrow();
         let scratch_exists = config.scratch_columns.iter().any(|col| col.name == name);
@@ -3632,6 +3637,7 @@ impl Niri {
         }
 
         let scratch_workspace_name = Self::scratch_workspace_name(name);
+        let return_workspace_name = Self::scratch_return_name(name);
         let active_workspace = match self.layout.active_workspace() {
             Some(workspace) => workspace,
             None => return false,
@@ -3646,9 +3652,16 @@ impl Niri {
                 warn!("scratch column `{name}` has no recorded source workspace");
                 return false;
             };
-            let Some((source_idx, source_workspace)) =
-                self.layout.find_workspace_by_id(runtime.source_workspace_id)
-            else {
+
+            // Find the source workspace by its return name first, then fall back
+            // to ID lookup. The return name ensures the workspace survived cleanup
+            // even when empty (named workspaces are never cleaned up).
+            let source = self
+                .layout
+                .find_workspace_by_name(&runtime.return_workspace_name)
+                .or_else(|| self.layout.find_workspace_by_id(runtime.source_workspace_id));
+
+            let Some((source_idx, source_workspace)) = source else {
                 warn!("scratch column `{name}` source workspace disappeared");
                 return false;
             };
@@ -3660,6 +3673,9 @@ impl Niri {
             self.layout.move_column_to_workspace(source_idx, true);
             self.layout.switch_workspace(source_idx);
 
+            // Clean up the return workspace name now that we've moved back.
+            self.layout.unname_workspace(&runtime.return_workspace_name);
+
             if let Some((_, scratch_workspace)) =
                 self.layout.find_workspace_by_name(&scratch_workspace_name)
             {
@@ -3670,6 +3686,11 @@ impl Niri {
 
             return true;
         }
+
+        // Name the current workspace with a return marker so it survives cleanup
+        // even after its columns are moved to the scratch workspace.
+        self.layout
+            .set_workspace_name(return_workspace_name.clone(), None);
 
         if let Some((scratch_idx, scratch_output)) = self
             .layout
@@ -3684,6 +3705,7 @@ impl Niri {
                 name.to_owned(),
                 ScratchColumnRuntime {
                     source_workspace_id: active_workspace_id,
+                    return_workspace_name,
                 },
             );
 
@@ -3705,6 +3727,7 @@ impl Niri {
             name.to_owned(),
             ScratchColumnRuntime {
                 source_workspace_id: active_workspace_id,
+                return_workspace_name,
             },
         );
         self.layout.move_column_to_workspace(scratch_idx, true);
