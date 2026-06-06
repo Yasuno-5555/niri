@@ -29,6 +29,7 @@ uniform mat3 input_to_geo;
 uniform float liquid;
 uniform float refraction;
 uniform float chromatic_aberration;
+uniform float time;
 
 float niri_rounding_alpha(vec2 coords, vec2 size, vec4 corner_radius);
 vec4 postprocess(vec4 color);
@@ -36,24 +37,53 @@ vec4 postprocess(vec4 color);
 void main() {
     vec3 coords_geo = input_to_geo * vec3(v_coords, 1.0);
 
-    vec2 tex_coords = v_coords;
-    if (liquid > 0.0) {
-        // 1. REFRACTION (屈折)
-        vec2 centered = coords_geo.xy - vec2(0.5);
-        vec2 normal = normalize(centered) * (1.0 - length(centered));
-        tex_coords = v_coords + normal * refraction;
-    }
-
-    // Sample the texture.
     vec4 color;
-    if (liquid > 0.0 && chromatic_aberration > 0.0) {
-        // 2. CHROMATIC ABERRATION (色収差)
-        float r = texture2D(tex, tex_coords - vec2(chromatic_aberration, 0.0)).r;
-        float g = texture2D(tex, tex_coords).g;
-        float b = texture2D(tex, tex_coords + vec2(chromatic_aberration, 0.0)).b;
+
+    if (liquid > 0.0 && refraction > 0.0) {
+        // 1. Compute normal for refraction
+        vec2 centered = coords_geo.xy - vec2(0.5);
+        float dist = length(centered) * 1.414;
+
+        // Subtle animated shimmer
+        float shimmer = sin(dist * 8.0 - time * 1.5) * 0.015 +
+                        cos(dist * 5.5 + time * 1.1) * 0.01;
+        vec2 normal = normalize(centered) * (1.0 - length(centered) * 0.85) + shimmer;
+
+        // Fresnel factor: edges distort more, center stays clear
+        float fresnel = pow(clamp(dist, 0.0, 1.0), 2.0);
+
+        // 2. DUAL-LAYER REFRACTION — glass thickness simulation
+        // Near layer: subtle displacement (front glass surface)
+        vec2 near_uv = v_coords + normal * refraction * 0.55;
+        vec4 near_color = texture2D(tex, near_uv);
+
+        // Far layer: stronger displacement (rear glass surface / backdrop)
+        vec2 far_uv = v_coords + normal * refraction * 1.3;
+        vec4 far_color = texture2D(tex, far_uv);
+
+        // Blend near and far refractions
+        vec4 refracted = mix(near_color, far_color, 0.4);
+
+        // 3. CHROMATIC ABERRATION — only on the refracted component
+        if (chromatic_aberration > 0.0) {
+            float ca = chromatic_aberration * (0.6 + fresnel * 0.4);
+            float r = texture2D(tex, far_uv - vec2(ca, 0.0)).r;
+            float b = texture2D(tex, far_uv + vec2(ca, 0.0)).b;
+            refracted.r = r;
+            refracted.b = b;
+        }
+
+        // 4. Fresnel-weighted blend: edges = more refraction, center = clearer
+        float blend_factor = fresnel * 0.85;
+        color = mix(texture2D(tex, v_coords), refracted, blend_factor);
+    } else if (liquid > 0.0 && chromatic_aberration > 0.0) {
+        // CA without refraction
+        float r = texture2D(tex, v_coords - vec2(chromatic_aberration, 0.0)).r;
+        float g = texture2D(tex, v_coords).g;
+        float b = texture2D(tex, v_coords + vec2(chromatic_aberration, 0.0)).b;
         color = vec4(r, g, b, 1.0);
     } else {
-        color = texture2D(tex, tex_coords);
+        color = texture2D(tex, v_coords);
     }
 
 #if defined(NO_ALPHA)

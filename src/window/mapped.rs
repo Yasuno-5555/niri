@@ -387,6 +387,9 @@ impl Mapped {
         if let Some(edge) = &mat.edge_highlight {
             self.rules.background_effect.edge_highlight = Some(edge.width.map(|w| w.0).unwrap_or(0.0));
         }
+        if let Some(bloom) = mat.bloom {
+            self.rules.background_effect.bloom = Some(bloom.0);
+        }
     }
 
     pub fn set_needs_configure(&mut self) {

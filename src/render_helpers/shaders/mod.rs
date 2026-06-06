@@ -105,6 +105,8 @@ impl Shaders {
                     UniformName::new("edge_highlight", UniformType::_1f),
                     UniformName::new("specular", UniformType::_1f),
                     UniformName::new("chromatic_aberration", UniformType::_1f),
+                    UniformName::new("time", UniformType::_1f),
+                    UniformName::new("bloom", UniformType::_1f),
                 ],
             )
             .map_err(|err| {
@@ -132,6 +134,8 @@ impl Shaders {
                     UniformName::new("edge_highlight", UniformType::_1f),
                     UniformName::new("specular", UniformType::_1f),
                     UniformName::new("chromatic_aberration", UniformType::_1f),
+                    UniformName::new("time", UniformType::_1f),
+                    UniformName::new("bloom", UniformType::_1f),
                 ],
             )
             .map_err(|err| {

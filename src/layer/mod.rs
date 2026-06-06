@@ -94,6 +94,9 @@ impl ResolvedLayerRules {
                             if let Some(edge) = &mat.edge_highlight {
                                 resolved.background_effect.edge_highlight = Some(edge.width.map(|w| w.0).unwrap_or(0.0));
                             }
+                            if let Some(bloom) = mat.bloom {
+                                resolved.background_effect.bloom = Some(bloom.0);
+                            }
                         }
                     }
                     if let Some(radius) = preset.corner_radius {

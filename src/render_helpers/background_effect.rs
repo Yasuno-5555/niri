@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
 use niri_config::CornerRadius;
@@ -15,6 +16,22 @@ use crate::render_helpers::xray::{XrayElement, XrayPos};
 use crate::render_helpers::RenderCtx;
 use crate::utils::region::TransformedRegion;
 use crate::utils::surface_geo;
+
+thread_local! {
+    /// Current frame time in seconds for shader animation.
+    /// Set by the compositor before each render pass.
+    static RENDER_TIME: Cell<f32> = Cell::new(0.0);
+}
+
+/// Set the render time for the current frame.
+/// Called from the compositor before rendering.
+pub fn set_render_time(time: f32) {
+    RENDER_TIME.with(|t| t.set(time));
+}
+
+fn get_render_time() -> f32 {
+    RENDER_TIME.with(|t| t.get())
+}
 
 #[derive(Debug)]
 pub struct BackgroundEffect {
@@ -41,6 +58,8 @@ pub struct Options {
     pub edge_highlight: Option<f64>,
     pub specular: Option<f64>,
     pub chromatic_aberration: Option<f64>,
+    pub bloom: Option<f64>,
+    pub time: f32,
 }
 
 impl Options {
@@ -137,6 +156,8 @@ impl BackgroundEffect {
             edge_highlight: effect.edge_highlight,
             specular: effect.specular,
             chromatic_aberration: effect.chromatic_aberration,
+            bloom: effect.bloom,
+            time: 0.,
         };
 
         // If we have some background effect but xray wasn't explicitly set, default it to true
@@ -160,7 +181,7 @@ impl BackgroundEffect {
     }
 
     pub fn render(
-        &self,
+        &mut self,
         ctx: RenderCtx<GlesRenderer>,
         ns: Option<usize>,
         mut params: RenderParams,
@@ -170,6 +191,9 @@ impl BackgroundEffect {
         if !self.is_visible() {
             return;
         }
+
+        // Update time for shader animation effects.
+        self.options.time = get_render_time();
 
         if let Some(clip) = &mut params.clip {
             clip.1 = self.corner_radius;
@@ -195,6 +219,8 @@ impl BackgroundEffect {
         let edge_highlight = self.options.edge_highlight.unwrap_or(0.) as f32;
         let specular = self.options.specular.unwrap_or(0.) as f32;
         let chromatic_aberration = self.options.chromatic_aberration.unwrap_or(0.) as f32;
+        let bloom = self.options.bloom.unwrap_or(0.) as f32;
+        let time = self.options.time;
 
         if self.options.xray {
             let Some(xray) = ctx.xray else {
@@ -214,6 +240,8 @@ impl BackgroundEffect {
                 edge_highlight,
                 specular,
                 chromatic_aberration,
+                bloom,
+                time,
                 &mut |elem| push(elem.into()),
             );
         } else {
@@ -231,6 +259,8 @@ impl BackgroundEffect {
                     edge_highlight,
                     specular,
                     chromatic_aberration,
+                    bloom,
+                    time,
                 );
             push(elem.into());
         }

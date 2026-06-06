@@ -1081,6 +1081,8 @@ pub struct BackgroundEffectRule {
     pub foreground_refraction: Option<FloatOrInt<0, 1000>>,
     #[knuffel(child, unwrap(argument))]
     pub foreground_chromatic_aberration: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub bloom: Option<FloatOrInt<0, 1000>>,
 }
 
 /// Resolved background effect rule.
@@ -1111,6 +1113,7 @@ pub struct BackgroundEffect {
     pub foreground_liquid: Option<bool>,
     pub foreground_refraction: Option<f64>,
     pub foreground_chromatic_aberration: Option<f64>,
+    pub bloom: Option<f64>,
 }
 
 impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
@@ -1148,6 +1151,10 @@ impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
         if let Some(x) = part.foreground_chromatic_aberration {
             self.foreground_chromatic_aberration = Some(x.0);
         }
+
+        if let Some(x) = part.bloom {
+            self.bloom = Some(x.0);
+        }
     }
 }
 
@@ -1176,6 +1183,9 @@ pub struct Material {
     
     #[knuffel(child)]
     pub edge_highlight: Option<MaterialEdgeHighlight>,
+
+    #[knuffel(child, unwrap(argument))]
+    pub bloom: Option<FloatOrInt<0, 1000>>,
 }
 
 #[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]

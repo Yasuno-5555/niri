@@ -161,8 +161,8 @@ use crate::render_helpers::surface::push_elements_from_surface_tree;
 use crate::render_helpers::texture::TextureBuffer;
 use crate::render_helpers::xray::{Xray, XrayPos};
 use crate::render_helpers::{
-    encompassing_geo, render_to_dmabuf, render_to_encompassing_texture, render_to_shm,
-    render_to_texture, render_to_vec, shaders, RenderCtx, RenderTarget,
+    background_effect, encompassing_geo, render_to_dmabuf, render_to_encompassing_texture,
+    render_to_shm, render_to_texture, render_to_vec, shaders, RenderCtx, RenderTarget,
 };
 #[cfg(feature = "xdp-gnome-screencast")]
 use crate::screencasting::Screencasting;
@@ -4758,6 +4758,9 @@ impl Niri {
                     .filter_map(|surface| self.mapped_layer_surfaces.get(surface))
                     .any(|mapped| mapped.are_animations_ongoing());
             }
+
+            // Set render time for shader animation effects.
+            background_effect::set_render_time(self.start_time.elapsed().as_secs_f32());
 
             // Render.
             res = backend.render(self, output, target_presentation_time);

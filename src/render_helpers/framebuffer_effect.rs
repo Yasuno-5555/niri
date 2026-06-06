@@ -43,6 +43,8 @@ pub struct FramebufferEffectElement {
     edge_highlight: f32,
     specular: f32,
     chromatic_aberration: f32,
+    bloom: f32,
+    time: f32,
 }
 
 #[derive(Debug)]
@@ -78,6 +80,8 @@ impl FramebufferEffect {
         edge_highlight: f32,
         specular: f32,
         chromatic_aberration: f32,
+        bloom: f32,
+        time: f32,
     ) -> FramebufferEffectElement {
         let (clip_geo, corner_radius) = params
             .clip
@@ -104,6 +108,8 @@ impl FramebufferEffect {
             edge_highlight,
             specular,
             chromatic_aberration,
+            bloom,
+            time,
         }
     }
 }
@@ -113,7 +119,7 @@ impl FramebufferEffectElement {
         &self,
         crop: Rectangle<f64, Logical>,
         transform: Transform,
-    ) -> [Uniform<'static>; 12] {
+    ) -> [Uniform<'static>; 14] {
         let offset = crop.loc - (self.clip_geo.loc - self.geometry.loc);
         let offset = Vec2::new(offset.x as f32, offset.y as f32);
         let crop_size = Vec2::new(crop.size.w as f32, crop.size.h as f32);
@@ -144,6 +150,8 @@ impl FramebufferEffectElement {
             Uniform::new("edge_highlight", self.edge_highlight),
             Uniform::new("specular", self.specular),
             Uniform::new("chromatic_aberration", self.chromatic_aberration),
+            Uniform::new("bloom", self.bloom),
+            Uniform::new("time", self.time),
         ]
     }
 }

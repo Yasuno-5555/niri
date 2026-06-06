@@ -84,6 +84,8 @@ pub struct XrayElement {
     edge_highlight: f32,
     specular: f32,
     chromatic_aberration: f32,
+    bloom: f32,
+    time: f32,
     bg_color: Color32F,
     program: Option<GlesTexProgram>,
 }
@@ -112,6 +114,8 @@ impl Xray {
         edge_highlight: f32,
         specular: f32,
         chromatic_aberration: f32,
+        bloom: f32,
+        time: f32,
         push: &mut dyn FnMut(XrayElement),
     ) {
         let program = Shaders::get(ctx.renderer).postprocess_and_clip.clone();
@@ -215,6 +219,8 @@ impl Xray {
                     edge_highlight,
                     specular,
                     chromatic_aberration,
+                    bloom,
+                    time,
                     bg_color: *bg_color,
                     program: program.clone(),
                 };
@@ -270,6 +276,8 @@ impl Xray {
                 edge_highlight,
                 specular,
                 chromatic_aberration,
+                bloom,
+                time,
                 bg_color: self.backdrop_color,
                 program: program.clone(),
             };
@@ -279,7 +287,7 @@ impl Xray {
 }
 
 impl XrayElement {
-    fn compute_uniforms(&self) -> [Uniform<'static>; 12] {
+    fn compute_uniforms(&self) -> [Uniform<'static>; 14] {
         [
             Uniform::new("niri_scale", self.scale),
             Uniform::new("geo_size", <[f32; 2]>::from(self.clip_geo_size)),
@@ -293,6 +301,8 @@ impl XrayElement {
             Uniform::new("edge_highlight", self.edge_highlight),
             Uniform::new("specular", self.specular),
             Uniform::new("chromatic_aberration", self.chromatic_aberration),
+            Uniform::new("bloom", self.bloom),
+            Uniform::new("time", self.time),
         ]
     }
 }
