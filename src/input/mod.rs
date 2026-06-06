@@ -2408,6 +2408,37 @@ impl State {
                     self.niri.queue_redraw_mru_output();
                 }
             }
+             Action::SetAnimationProfile(profile) => {
+                self.niri.config.borrow_mut().active_animation_profile = Some(profile);
+                {
+                    let config = self.niri.config.borrow();
+                    self.niri.layout.update_config(&config);
+                }
+                self.niri.queue_redraw_all();
+            }
+            Action::ToggleScratchColumn(name) => {
+                log::info!("Toggle scratch column request: {}", name);
+            }
+            Action::SetMaterial(material_name) => {
+                let focus_ptr = self.niri.layout.focus().map(|fw| fw as *const crate::window::Mapped);
+                if let Some(focus_ptr) = focus_ptr {
+                    let mut found = false;
+                    {
+                        let config = self.niri.config.borrow();
+                        if let Some(mat) = config.materials.iter().find(|m| m.name == material_name) {
+                            self.niri.layout.with_windows_mut(|mapped, _| {
+                                if (mapped as *const crate::window::Mapped) == focus_ptr {
+                                    mapped.apply_material(mat);
+                                    found = true;
+                                }
+                            });
+                        }
+                    }
+                    if found {
+                        self.niri.queue_redraw_all();
+                    }
+                }
+            }
         }
     }
 

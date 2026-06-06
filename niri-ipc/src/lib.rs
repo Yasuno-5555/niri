@@ -943,6 +943,24 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg(long))]
         path: Option<String>,
     },
+    /// Set the current active animation profile.
+    SetAnimationProfile {
+        /// The name of the animation profile.
+        #[cfg_attr(feature = "clap", arg())]
+        profile: String,
+    },
+    /// Toggle a scratch column.
+    ToggleScratchColumn {
+        /// The name of the scratch column.
+        #[cfg_attr(feature = "clap", arg())]
+        name: String,
+    },
+    /// Set a dynamic material.
+    SetMaterial {
+        /// The name of the material.
+        #[cfg_attr(feature = "clap", arg())]
+        material: String,
+    },
 }
 
 /// Change in window or column size.

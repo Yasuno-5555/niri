@@ -321,10 +321,22 @@ impl Mapped {
     }
 
     /// Recomputes the resolved window rules and returns whether they changed.
-    pub fn recompute_window_rules(&mut self, rules: &[WindowRule], is_at_startup: bool) -> bool {
+    pub fn recompute_window_rules(
+        &mut self,
+        rules: &[WindowRule],
+        is_at_startup: bool,
+        presets: &[niri_config::EffectPreset],
+        materials: &[niri_config::Material],
+    ) -> bool {
         self.need_to_recompute_rules = false;
 
-        let new_rules = ResolvedWindowRules::compute(rules, WindowRef::Mapped(self), is_at_startup);
+        let new_rules = ResolvedWindowRules::compute(
+            rules,
+            WindowRef::Mapped(self),
+            is_at_startup,
+            presets,
+            materials,
+        );
         if new_rules == self.rules {
             return false;
         }
@@ -343,12 +355,38 @@ impl Mapped {
         &mut self,
         rules: &[WindowRule],
         is_at_startup: bool,
+        presets: &[niri_config::EffectPreset],
+        materials: &[niri_config::Material],
     ) -> bool {
         if !self.need_to_recompute_rules {
             return false;
         }
 
-        self.recompute_window_rules(rules, is_at_startup)
+        self.recompute_window_rules(rules, is_at_startup, presets, materials)
+    }
+
+    pub fn apply_material(&mut self, mat: &niri_config::Material) {
+        if mat.blur.is_some() {
+            self.rules.background_effect.blur = Some(true);
+        }
+        if let Some(sat) = mat.saturation {
+            self.rules.background_effect.saturation = Some(sat.0);
+        }
+        if let Some(noise) = mat.noise {
+            self.rules.background_effect.noise = Some(noise.0);
+        }
+        if mat.refraction.is_some() || mat.specular.is_some() {
+            self.rules.background_effect.liquid = Some(true);
+        }
+        if let Some(refraction) = mat.refraction {
+            self.rules.background_effect.refraction = Some(refraction.strength.map(|s| s.0).unwrap_or(0.0));
+        }
+        if let Some(spec) = mat.specular {
+            self.rules.background_effect.specular = Some(spec.strength.map(|s| s.0).unwrap_or(0.0));
+        }
+        if let Some(edge) = &mat.edge_highlight {
+            self.rules.background_effect.edge_highlight = Some(edge.width.map(|w| w.0).unwrap_or(0.0));
+        }
     }
 
     pub fn set_needs_configure(&mut self) {

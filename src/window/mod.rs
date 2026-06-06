@@ -180,7 +180,13 @@ impl<'a> WindowRef<'a> {
 }
 
 impl ResolvedWindowRules {
-    pub fn compute(rules: &[WindowRule], window: WindowRef, is_at_startup: bool) -> Self {
+    pub fn compute(
+        rules: &[WindowRule],
+        window: WindowRef,
+        is_at_startup: bool,
+        presets: &[niri_config::EffectPreset],
+        materials: &[niri_config::Material],
+    ) -> Self {
         let _span = tracy_client::span!("ResolvedWindowRules::compute");
 
         let mut resolved = ResolvedWindowRules::default();
@@ -211,6 +217,39 @@ impl ResolvedWindowRules {
 
                 if rule.excludes.iter().any(matches) {
                     continue;
+                }
+
+                if let Some(preset_name) = &rule.effect_preset {
+                    if let Some(preset) = presets.iter().find(|p| &p.name == preset_name) {
+                        if let Some(material_name) = &preset.material {
+                            if let Some(mat) = materials.iter().find(|m| &m.name == material_name) {
+                                if mat.blur.is_some() {
+                                    resolved.background_effect.blur = Some(true);
+                                }
+                                if let Some(sat) = mat.saturation {
+                                    resolved.background_effect.saturation = Some(sat.0);
+                                }
+                                if let Some(noise) = mat.noise {
+                                    resolved.background_effect.noise = Some(noise.0);
+                                }
+                                if mat.refraction.is_some() || mat.specular.is_some() {
+                                    resolved.background_effect.liquid = Some(true);
+                                }
+                                if let Some(refraction) = mat.refraction {
+                                    resolved.background_effect.refraction = Some(refraction.strength.map(|s| s.0).unwrap_or(0.0));
+                                }
+                                if let Some(spec) = mat.specular {
+                                    resolved.background_effect.specular = Some(spec.strength.map(|s| s.0).unwrap_or(0.0));
+                                }
+                                if let Some(edge) = &mat.edge_highlight {
+                                    resolved.background_effect.edge_highlight = Some(edge.width.map(|w| w.0).unwrap_or(0.0));
+                                }
+                            }
+                        }
+                        if let Some(radius) = preset.corner_radius {
+                            resolved.geometry_corner_radius = Some(radius);
+                        }
+                    }
                 }
 
                 if let Some(x) = rule.default_column_width {

@@ -63,6 +63,9 @@ pub use crate::window_rule::{
     FloatingPosition, PopupsRule, RelativeTo, ResolvedPopupsRules, WindowRule,
 };
 pub use crate::workspace::{Workspace, WorkspaceLayoutPart};
+pub use crate::appearance::{Material, EffectPreset};
+pub use crate::animations::AnimationProfile;
+pub use crate::layout::ScratchColumn;
 
 const RECURSION_LIMIT: u8 = 10;
 
@@ -87,11 +90,16 @@ pub struct Config {
     pub xwayland_satellite: XwaylandSatellite,
     pub window_rules: Vec<WindowRule>,
     pub layer_rules: Vec<LayerRule>,
+    pub materials: Vec<Material>,
+    pub effect_presets: Vec<EffectPreset>,
+    pub animation_profiles: Vec<AnimationProfile>,
+    pub scratch_columns: Vec<ScratchColumn>,
     pub binds: Binds,
     pub switch_events: SwitchBinds,
     pub debug: Debug,
     pub workspaces: Vec<Workspace>,
     pub recent_windows: RecentWindows,
+    pub active_animation_profile: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -166,6 +174,9 @@ where
                     | "layer-rule"
                     | "workspace"
                     | "include"
+                    | "material"
+                    | "effect-preset"
+                    | "animation-profile"
             ) && !seen.insert(name)
             {
                 ctx.emit_error(DecodeError::unexpected(
@@ -213,6 +224,9 @@ where
                 "spawn-sh-at-startup" => m_push!(spawn_sh_at_startup),
                 "window-rule" => m_push!(window_rules),
                 "layer-rule" => m_push!(layer_rules),
+                "material" => m_push!(materials),
+                "effect-preset" => m_push!(effect_presets),
+                "animation-profile" => m_push!(animation_profiles),
                 "workspace" => m_push!(workspaces),
 
                 // Single-part sections.

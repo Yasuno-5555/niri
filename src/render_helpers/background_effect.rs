@@ -36,6 +36,11 @@ pub struct Options {
     pub xray: bool,
     pub noise: Option<f64>,
     pub saturation: Option<f64>,
+    pub liquid: bool,
+    pub refraction: Option<f64>,
+    pub edge_highlight: Option<f64>,
+    pub specular: Option<f64>,
+    pub chromatic_aberration: Option<f64>,
 }
 
 impl Options {
@@ -44,6 +49,7 @@ impl Options {
             || self.blur
             || self.noise.is_some_and(|x| x > 0.)
             || self.saturation.is_some_and(|x| x != 1.)
+            || self.liquid
     }
 }
 
@@ -126,6 +132,11 @@ impl BackgroundEffect {
             xray: effect.xray == Some(true),
             noise: effect.noise,
             saturation: effect.saturation,
+            liquid: effect.liquid == Some(true),
+            refraction: effect.refraction,
+            edge_highlight: effect.edge_highlight,
+            specular: effect.specular,
+            chromatic_aberration: effect.chromatic_aberration,
         };
 
         // If we have some background effect but xray wasn't explicitly set, default it to true
@@ -180,6 +191,11 @@ impl BackgroundEffect {
         };
         let saturation = self.options.saturation.unwrap_or(saturation) as f32;
 
+        let refraction = self.options.refraction.unwrap_or(0.) as f32;
+        let edge_highlight = self.options.edge_highlight.unwrap_or(0.) as f32;
+        let specular = self.options.specular.unwrap_or(0.) as f32;
+        let chromatic_aberration = self.options.chromatic_aberration.unwrap_or(0.) as f32;
+
         if self.options.xray {
             let Some(xray) = ctx.xray else {
                 return;
@@ -193,13 +209,29 @@ impl BackgroundEffect {
                 blur,
                 noise,
                 saturation,
+                self.options.liquid,
+                refraction,
+                edge_highlight,
+                specular,
+                chromatic_aberration,
                 &mut |elem| push(elem.into()),
             );
         } else {
             // Render non-xray effect.
             let elem = self
                 .nonxray
-                .render(ns, params, blur_options, noise, saturation);
+                .render(
+                    ns,
+                    params,
+                    blur_options,
+                    noise,
+                    saturation,
+                    self.options.liquid,
+                    refraction,
+                    edge_highlight,
+                    specular,
+                    chromatic_aberration,
+                );
             push(elem.into());
         }
     }

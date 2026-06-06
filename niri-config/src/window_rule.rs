@@ -77,6 +77,8 @@ pub struct WindowRule {
     pub tiled_state: Option<bool>,
     #[knuffel(child, default)]
     pub background_effect: BackgroundEffectRule,
+    #[knuffel(child, unwrap(argument))]
+    pub effect_preset: Option<String>,
     #[knuffel(child, default)]
     pub popups: PopupsRule,
 }

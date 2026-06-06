@@ -393,6 +393,9 @@ pub enum Action {
     MruSetScope(MruScope),
     #[knuffel(skip)]
     MruCycleScope,
+    SetAnimationProfile(#[knuffel(argument)] String),
+    ToggleScratchColumn(#[knuffel(argument)] String),
+    SetMaterial(#[knuffel(argument)] String),
 }
 
 impl From<niri_ipc::Action> for Action {
@@ -704,6 +707,9 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::SetWindowUrgent { id } => Self::SetWindowUrgent(id),
             niri_ipc::Action::UnsetWindowUrgent { id } => Self::UnsetWindowUrgent(id),
             niri_ipc::Action::LoadConfigFile { path } => Self::LoadConfigFile(path),
+            niri_ipc::Action::SetAnimationProfile { profile } => Self::SetAnimationProfile(profile),
+            niri_ipc::Action::ToggleScratchColumn { name } => Self::ToggleScratchColumn(name),
+            niri_ipc::Action::SetMaterial { material } => Self::SetMaterial(material),
         }
     }
 }

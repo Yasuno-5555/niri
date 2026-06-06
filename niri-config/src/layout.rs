@@ -196,3 +196,18 @@ where
         }
     }
 }
+
+#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+pub struct ScratchColumn {
+    #[knuffel(argument)]
+    pub name: String,
+    
+    #[knuffel(child, unwrap(argument))]
+    pub width: Option<FloatOrInt<0, 1000>>,
+    
+    #[knuffel(child, unwrap(argument))]
+    pub position: Option<String>,
+    
+    #[knuffel(child, unwrap(argument))]
+    pub animation: Option<String>,
+}

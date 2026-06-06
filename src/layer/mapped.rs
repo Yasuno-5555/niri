@@ -8,7 +8,7 @@ use smithay::wayland::compositor::{remove_pre_commit_hook, HookId};
 use smithay::wayland::shell::wlr_layer::{ExclusiveZone, Layer};
 
 use super::ResolvedLayerRules;
-use crate::animation::Clock;
+use crate::animation::{Animation, Clock};
 use crate::layout::shadow::Shadow;
 use crate::niri_render_elements;
 use crate::render_helpers::background_effect::BackgroundEffectElement;
@@ -53,6 +53,24 @@ pub struct MappedLayer {
 
     /// Clock for driving animations.
     clock: Clock,
+
+    /// Config used for geometry interpolation.
+    move_animation_config: niri_config::Animation,
+
+    /// The last arranged layer geometry location.
+    last_arranged_location: Option<Point<f64, Logical>>,
+
+    /// Ongoing X-axis geometry interpolation.
+    move_x_animation: Option<MoveAnimation>,
+
+    /// Ongoing Y-axis geometry interpolation.
+    move_y_animation: Option<MoveAnimation>,
+}
+
+#[derive(Debug)]
+struct MoveAnimation {
+    anim: Animation,
+    from: f64,
 }
 
 niri_render_elements! {
@@ -90,6 +108,10 @@ impl MappedLayer {
             shadow: Shadow::new(shadow_config),
             blur_config: config.blur,
             clock,
+            move_animation_config: config.animations.window_movement.0,
+            last_arranged_location: None,
+            move_x_animation: None,
+            move_y_animation: None,
         }
     }
 
@@ -101,6 +123,7 @@ impl MappedLayer {
         self.shadow.update_config(shadow_config);
 
         self.blur_config = config.blur;
+        self.move_animation_config = config.animations.window_movement.0;
     }
 
     pub fn update_shaders(&mut self) {
@@ -112,9 +135,12 @@ impl MappedLayer {
         self.scale = scale;
     }
 
-    pub fn update_render_elements(&mut self, size: Size<f64, Logical>) {
+    pub fn update_render_elements(&mut self, geometry: Rectangle<f64, Logical>) {
+        self.update_geometry_animation(geometry.loc);
+
         // Round to physical pixels.
-        let size = size
+        let size = geometry
+            .size
             .to_physical_precise_round(self.scale)
             .to_logical(self.scale);
 
@@ -128,6 +154,8 @@ impl MappedLayer {
 
     pub fn are_animations_ongoing(&self) -> bool {
         self.rules.baba_is_float
+            || self.move_x_animation.is_some()
+            || self.move_y_animation.is_some()
     }
 
     pub fn surface(&self) -> &LayerSurface {
@@ -139,8 +167,14 @@ impl MappedLayer {
     }
 
     /// Recomputes the resolved layer rules and returns whether they changed.
-    pub fn recompute_layer_rules(&mut self, rules: &[LayerRule], is_at_startup: bool) -> bool {
-        let new_rules = ResolvedLayerRules::compute(rules, &self.surface, is_at_startup);
+    pub fn recompute_layer_rules(
+        &mut self,
+        rules: &[LayerRule],
+        is_at_startup: bool,
+        presets: &[niri_config::EffectPreset],
+        materials: &[niri_config::Material],
+    ) -> bool {
+        let new_rules = ResolvedLayerRules::compute(rules, &self.surface, is_at_startup, presets, materials);
         if new_rules == self.rules {
             return false;
         }
@@ -184,6 +218,79 @@ impl MappedLayer {
         Point::from((0., y))
     }
 
+    pub fn advance_animations(&mut self) {
+        if let Some(move_) = &self.move_x_animation {
+            if move_.anim.is_done() {
+                self.move_x_animation = None;
+            }
+        }
+        if let Some(move_) = &self.move_y_animation {
+            if move_.anim.is_done() {
+                self.move_y_animation = None;
+            }
+        }
+    }
+
+    fn render_offset(&self) -> Point<f64, Logical> {
+        let mut offset = Point::from((0., 0.));
+
+        if let Some(move_) = &self.move_x_animation {
+            offset.x += move_.from * move_.anim.value();
+        }
+        if let Some(move_) = &self.move_y_animation {
+            offset.y += move_.from * move_.anim.value();
+        }
+
+        offset
+    }
+
+    fn update_geometry_animation(&mut self, location: Point<f64, Logical>) {
+        let Some(previous) = self.last_arranged_location.replace(location) else {
+            return;
+        };
+
+        let delta = previous - location;
+
+        if delta.x.abs() > f64::EPSILON {
+            self.animate_move_x_from(delta.x);
+        }
+        if delta.y.abs() > f64::EPSILON {
+            self.animate_move_y_from(delta.y);
+        }
+    }
+
+    fn animate_move_x_from(&mut self, from: f64) {
+        let current_offset = self.render_offset().x;
+
+        let anim = self.move_x_animation.take().map(|move_| move_.anim);
+        let anim = anim
+            .map(|anim| anim.restarted(1., 0., 0.))
+            .unwrap_or_else(|| {
+                Animation::new(self.clock.clone(), 1., 0., 0., self.move_animation_config)
+            });
+
+        self.move_x_animation = Some(MoveAnimation {
+            anim,
+            from: from + current_offset,
+        });
+    }
+
+    fn animate_move_y_from(&mut self, from: f64) {
+        let current_offset = self.render_offset().y;
+
+        let anim = self.move_y_animation.take().map(|move_| move_.anim);
+        let anim = anim
+            .map(|anim| anim.restarted(1., 0., 0.))
+            .unwrap_or_else(|| {
+                Animation::new(self.clock.clone(), 1., 0., 0., self.move_animation_config)
+            });
+
+        self.move_y_animation = Some(MoveAnimation {
+            anim,
+            from: from + current_offset,
+        });
+    }
+
     pub fn render_normal<R: NiriRenderer>(
         &self,
         mut ctx: RenderCtx<R>,
@@ -195,9 +302,9 @@ impl MappedLayer {
         let scale = Scale::from(self.scale);
         let alpha = self.rules.opacity.unwrap_or(1.).clamp(0., 1.);
 
-        let bob_offset = self.bob_offset();
-        let location = location + bob_offset;
-        let xray_pos = xray_pos.offset(bob_offset);
+        let render_offset = self.render_offset() + self.bob_offset();
+        let location = location + render_offset;
+        let xray_pos = xray_pos.offset(render_offset);
 
         let surface = self.surface.wl_surface();
 
@@ -270,9 +377,9 @@ impl MappedLayer {
         let scale = Scale::from(self.scale);
         let alpha = self.rules.opacity.unwrap_or(1.).clamp(0., 1.);
 
-        let bob_offset = self.bob_offset();
-        let location = location + bob_offset;
-        let xray_pos = xray_pos.offset(bob_offset);
+        let render_offset = self.render_offset() + self.bob_offset();
+        let location = location + render_offset;
+        let xray_pos = xray_pos.offset(render_offset);
 
         let surface = self.surface.wl_surface();
         for (popup, offset) in PopupManager::popups_for_surface(surface) {

@@ -120,7 +120,13 @@ impl State {
                 let config = self.niri.config.borrow();
 
                 let rules = &config.layer_rules;
-                let rules = ResolvedLayerRules::compute(rules, layer, self.niri.is_at_startup);
+                let rules = ResolvedLayerRules::compute(
+                    rules,
+                    layer,
+                    self.niri.is_at_startup,
+                    &config.effect_presets,
+                    &config.materials,
+                );
 
                 let output_size = output_size(&output);
                 let scale = output.current_scale().fractional_scale();
@@ -149,9 +155,12 @@ impl State {
                     // Check if the layer changed.
                     if mapped.take_recompute_rules_on_commit() {
                         let config = self.niri.config.borrow();
-                        if mapped
-                            .recompute_layer_rules(&config.layer_rules, self.niri.is_at_startup)
-                        {
+                        if mapped.recompute_layer_rules(
+                            &config.layer_rules,
+                            self.niri.is_at_startup,
+                            &config.effect_presets,
+                            &config.materials,
+                        ) {
                             mapped.update_config(&config);
                         }
                     }

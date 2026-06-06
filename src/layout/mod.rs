@@ -646,11 +646,109 @@ impl HitType {
     }
 }
 
+fn resolve_animation_preset(name: &str) -> Option<niri_config::animations::Animation> {
+    use niri_config::animations::{Kind, EasingParams, SpringParams, Curve};
+    match name {
+        "liquid-pop" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Spring(SpringParams {
+                damping_ratio: 0.55,
+                stiffness: 800,
+                epsilon: 0.0001,
+            }),
+        }),
+        "liquid-melt" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 200,
+                curve: Curve::EaseOutCubic,
+            }),
+        }),
+        "slide-glass" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 180,
+                curve: Curve::EaseOutExpo,
+            }),
+        }),
+        "zoom-out" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 220,
+                curve: Curve::EaseOutQuad,
+            }),
+        }),
+        "popin" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Spring(SpringParams {
+                damping_ratio: 0.6,
+                stiffness: 700,
+                epsilon: 0.0001,
+            }),
+        }),
+        "shrinkfade" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 150,
+                curve: Curve::EaseOutQuad,
+            }),
+        }),
+        "slidefade" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 180,
+                curve: Curve::EaseOutExpo,
+            }),
+        }),
+        "fast-fade" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 100,
+                curve: Curve::Linear,
+            }),
+        }),
+        "calm" => Some(niri_config::animations::Animation {
+            off: false,
+            kind: Kind::Easing(EasingParams {
+                duration_ms: 250,
+                curve: Curve::EaseOutQuad,
+            }),
+        }),
+        _ => None,
+    }
+}
+
 impl Options {
     fn from_config(config: &Config) -> Self {
+        let mut animations = config.animations.clone();
+        if let Some(profile_name) = &config.active_animation_profile {
+            if let Some(profile) = config.animation_profiles.iter().find(|p| &p.name == profile_name) {
+                if let Some(preset_name) = &profile.window_open {
+                    if let Some(anim) = resolve_animation_preset(preset_name) {
+                        animations.window_open.anim = anim;
+                    }
+                }
+                if let Some(preset_name) = &profile.window_close {
+                    if let Some(anim) = resolve_animation_preset(preset_name) {
+                        animations.window_close.anim = anim;
+                    }
+                }
+                if let Some(preset_name) = &profile.workspace {
+                    if let Some(anim) = resolve_animation_preset(preset_name) {
+                        animations.workspace_switch.0 = anim;
+                    }
+                }
+                if let Some(preset_name) = &profile.overview_open {
+                    if let Some(anim) = resolve_animation_preset(preset_name) {
+                        animations.overview_open_close.0 = anim;
+                    }
+                }
+            }
+        }
+
         Self {
             layout: config.layout.clone(),
-            animations: config.animations.clone(),
+            animations,
             gestures: config.gestures,
             overview: config.overview,
             blur: config.blur,

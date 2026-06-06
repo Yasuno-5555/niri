@@ -38,6 +38,11 @@ pub struct FramebufferEffectElement {
     blur_options: Option<BlurOptions>,
     noise: f32,
     saturation: f32,
+    liquid: bool,
+    refraction: f32,
+    edge_highlight: f32,
+    specular: f32,
+    chromatic_aberration: f32,
 }
 
 #[derive(Debug)]
@@ -68,6 +73,11 @@ impl FramebufferEffect {
         blur_options: Option<BlurOptions>,
         noise: f32,
         saturation: f32,
+        liquid: bool,
+        refraction: f32,
+        edge_highlight: f32,
+        specular: f32,
+        chromatic_aberration: f32,
     ) -> FramebufferEffectElement {
         let (clip_geo, corner_radius) = params
             .clip
@@ -89,6 +99,11 @@ impl FramebufferEffect {
             blur_options,
             noise,
             saturation,
+            liquid,
+            refraction,
+            edge_highlight,
+            specular,
+            chromatic_aberration,
         }
     }
 }
@@ -98,7 +113,7 @@ impl FramebufferEffectElement {
         &self,
         crop: Rectangle<f64, Logical>,
         transform: Transform,
-    ) -> [Uniform<'static>; 7] {
+    ) -> [Uniform<'static>; 12] {
         let offset = crop.loc - (self.clip_geo.loc - self.geometry.loc);
         let offset = Vec2::new(offset.x as f32, offset.y as f32);
         let crop_size = Vec2::new(crop.size.w as f32, crop.size.h as f32);
@@ -124,6 +139,11 @@ impl FramebufferEffectElement {
             Uniform::new("noise", self.noise),
             Uniform::new("saturation", self.saturation),
             Uniform::new("bg_color", [0f32, 0., 0., 0.]),
+            Uniform::new("liquid", if self.liquid { 1.0f32 } else { 0.0f32 }),
+            Uniform::new("refraction", self.refraction),
+            Uniform::new("edge_highlight", self.edge_highlight),
+            Uniform::new("specular", self.specular),
+            Uniform::new("chromatic_aberration", self.chromatic_aberration),
         ]
     }
 }

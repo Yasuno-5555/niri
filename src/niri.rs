@@ -4032,11 +4032,13 @@ impl Niri {
 
         let config = self.config.borrow();
         let window_rules = &config.window_rules;
+        let presets = &config.effect_presets;
+        let materials = &config.materials;
 
         let mut windows = vec![];
         let mut outputs = HashSet::new();
         self.layout.with_windows_mut(|mapped, output| {
-            if mapped.recompute_window_rules_if_needed(window_rules, self.is_at_startup) {
+            if mapped.recompute_window_rules_if_needed(window_rules, self.is_at_startup, presets, materials) {
                 windows.push(mapped.window.clone());
 
                 if let Some(output) = output {
@@ -4070,6 +4072,9 @@ impl Niri {
         self.exit_confirm_dialog.advance_animations();
         self.screenshot_ui.advance_animations();
         self.window_mru_ui.advance_animations();
+        for mapped in self.mapped_layer_surfaces.values_mut() {
+            mapped.advance_animations();
+        }
 
         for state in self.output_state.values_mut() {
             if let Some(transition) = &mut state.screen_transition {
@@ -4102,7 +4107,7 @@ impl Niri {
                         continue;
                     };
 
-                    mapped.update_render_elements(geo.size.to_f64());
+                    mapped.update_render_elements(geo.to_f64());
                 }
             }
         }
@@ -4145,7 +4150,7 @@ impl Niri {
                         continue;
                     };
 
-                    mapped.update_render_elements(geo.size.to_f64());
+                    mapped.update_render_elements(geo.to_f64());
                 }
             }
         }
@@ -6328,13 +6333,18 @@ impl Niri {
         let _span = tracy_client::span!("Niri::recompute_window_rules");
 
         let changed = {
-            let window_rules = &self.config.borrow().window_rules;
+            let config = self.config.borrow();
+            let window_rules = &config.window_rules;
+            let presets = &config.effect_presets;
+            let materials = &config.materials;
 
             for unmapped in self.unmapped_windows.values_mut() {
                 let new_rules = ResolvedWindowRules::compute(
                     window_rules,
                     WindowRef::Unmapped(unmapped),
                     self.is_at_startup,
+                    presets,
+                    materials,
                 );
                 if let InitialConfigureState::Configured { rules, .. } = &mut unmapped.state {
                     *rules = new_rules;
@@ -6343,7 +6353,7 @@ impl Niri {
 
             let mut windows = vec![];
             self.layout.with_windows_mut(|mapped, _| {
-                if mapped.recompute_window_rules(window_rules, self.is_at_startup) {
+                if mapped.recompute_window_rules(window_rules, self.is_at_startup, presets, materials) {
                     windows.push(mapped.window.clone());
                 }
             });
@@ -6367,9 +6377,11 @@ impl Niri {
         {
             let config = self.config.borrow();
             let rules = &config.layer_rules;
+            let presets = &config.effect_presets;
+            let materials = &config.materials;
 
             for mapped in self.mapped_layer_surfaces.values_mut() {
-                if mapped.recompute_layer_rules(rules, self.is_at_startup) {
+                if mapped.recompute_layer_rules(rules, self.is_at_startup, presets, materials) {
                     changed = true;
                     mapped.update_config(&config);
                 }

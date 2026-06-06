@@ -79,6 +79,11 @@ pub struct XrayElement {
     blur: bool,
     noise: f32,
     saturation: f32,
+    liquid: bool,
+    refraction: f32,
+    edge_highlight: f32,
+    specular: f32,
+    chromatic_aberration: f32,
     bg_color: Color32F,
     program: Option<GlesTexProgram>,
 }
@@ -102,6 +107,11 @@ impl Xray {
         blur: bool,
         noise: f32,
         saturation: f32,
+        liquid: bool,
+        refraction: f32,
+        edge_highlight: f32,
+        specular: f32,
+        chromatic_aberration: f32,
         push: &mut dyn FnMut(XrayElement),
     ) {
         let program = Shaders::get(ctx.renderer).postprocess_and_clip.clone();
@@ -200,6 +210,11 @@ impl Xray {
                     blur,
                     noise,
                     saturation,
+                    liquid,
+                    refraction,
+                    edge_highlight,
+                    specular,
+                    chromatic_aberration,
                     bg_color: *bg_color,
                     program: program.clone(),
                 };
@@ -250,6 +265,11 @@ impl Xray {
                 blur,
                 noise,
                 saturation,
+                liquid,
+                refraction,
+                edge_highlight,
+                specular,
+                chromatic_aberration,
                 bg_color: self.backdrop_color,
                 program: program.clone(),
             };
@@ -259,7 +279,7 @@ impl Xray {
 }
 
 impl XrayElement {
-    fn compute_uniforms(&self) -> [Uniform<'static>; 7] {
+    fn compute_uniforms(&self) -> [Uniform<'static>; 12] {
         [
             Uniform::new("niri_scale", self.scale),
             Uniform::new("geo_size", <[f32; 2]>::from(self.clip_geo_size)),
@@ -268,6 +288,11 @@ impl XrayElement {
             Uniform::new("noise", self.noise),
             Uniform::new("saturation", self.saturation),
             Uniform::new("bg_color", self.bg_color.components()),
+            Uniform::new("liquid", if self.liquid { 1.0f32 } else { 0.0f32 }),
+            Uniform::new("refraction", self.refraction),
+            Uniform::new("edge_highlight", self.edge_highlight),
+            Uniform::new("specular", self.specular),
+            Uniform::new("chromatic_aberration", self.chromatic_aberration),
         ]
     }
 }

@@ -119,6 +119,11 @@ impl Shaders {
                     UniformName::new("noise", UniformType::_1f),
                     UniformName::new("saturation", UniformType::_1f),
                     UniformName::new("bg_color", UniformType::_4f),
+                    UniformName::new("liquid", UniformType::_1f),
+                    UniformName::new("refraction", UniformType::_1f),
+                    UniformName::new("edge_highlight", UniformType::_1f),
+                    UniformName::new("specular", UniformType::_1f),
+                    UniformName::new("chromatic_aberration", UniformType::_1f),
                 ],
             )
             .map_err(|err| {

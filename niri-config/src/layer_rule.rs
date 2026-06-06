@@ -25,6 +25,8 @@ pub struct LayerRule {
     pub background_effect: BackgroundEffectRule,
     #[knuffel(child, default)]
     pub popups: PopupsRule,
+    #[knuffel(child, unwrap(argument))]
+    pub effect_preset: Option<String>,
 }
 
 #[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]

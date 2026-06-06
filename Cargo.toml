@@ -118,7 +118,7 @@ features = [
 ]
 
 [dev-dependencies]
-approx = "0.5.1"
+approx = "0.4.0"
 calloop-wayland-source = "0.4.1"
 insta.workspace = true
 proptest = "1.11.0"

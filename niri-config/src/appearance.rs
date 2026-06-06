@@ -1065,6 +1065,16 @@ pub struct BackgroundEffectRule {
     pub noise: Option<FloatOrInt<0, 1000>>,
     #[knuffel(child, unwrap(argument))]
     pub saturation: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub liquid: Option<bool>,
+    #[knuffel(child, unwrap(argument))]
+    pub refraction: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub edge_highlight: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub specular: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub chromatic_aberration: Option<FloatOrInt<0, 1000>>,
 }
 
 /// Resolved background effect rule.
@@ -1087,11 +1097,16 @@ pub struct BackgroundEffect {
 
     pub noise: Option<f64>,
     pub saturation: Option<f64>,
+    pub liquid: Option<bool>,
+    pub refraction: Option<f64>,
+    pub edge_highlight: Option<f64>,
+    pub specular: Option<f64>,
+    pub chromatic_aberration: Option<f64>,
 }
 
 impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
     fn merge_with(&mut self, part: &BackgroundEffectRule) {
-        merge_clone_opt!((self, part), xray, blur);
+        merge_clone_opt!((self, part), xray, blur, liquid);
 
         if let Some(x) = part.noise {
             self.noise = Some(x.0);
@@ -1100,7 +1115,96 @@ impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
         if let Some(x) = part.saturation {
             self.saturation = Some(x.0);
         }
+
+        if let Some(x) = part.refraction {
+            self.refraction = Some(x.0);
+        }
+
+        if let Some(x) = part.edge_highlight {
+            self.edge_highlight = Some(x.0);
+        }
+
+        if let Some(x) = part.specular {
+            self.specular = Some(x.0);
+        }
+
+        if let Some(x) = part.chromatic_aberration {
+            self.chromatic_aberration = Some(x.0);
+        }
     }
+}
+
+#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+pub struct Material {
+    #[knuffel(argument)]
+    pub name: String,
+    
+    #[knuffel(child)]
+    pub blur: Option<BlurPart>,
+    
+    #[knuffel(child, unwrap(argument))]
+    pub tint: Option<String>,
+    
+    #[knuffel(child, unwrap(argument))]
+    pub saturation: Option<FloatOrInt<0, 1000>>,
+    
+    #[knuffel(child, unwrap(argument))]
+    pub noise: Option<FloatOrInt<0, 1000>>,
+
+    #[knuffel(child)]
+    pub refraction: Option<MaterialRefraction>,
+    
+    #[knuffel(child)]
+    pub specular: Option<MaterialSpecular>,
+    
+    #[knuffel(child)]
+    pub edge_highlight: Option<MaterialEdgeHighlight>,
+}
+
+#[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
+pub struct MaterialRefraction {
+    #[knuffel(child, unwrap(argument))]
+    pub strength: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub edge_strength: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub normal_noise: Option<FloatOrInt<0, 1000>>,
+}
+
+#[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
+pub struct MaterialSpecular {
+    #[knuffel(child, unwrap(argument))]
+    pub strength: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub angle: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub width: Option<FloatOrInt<0, 1000>>,
+}
+
+#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+pub struct MaterialEdgeHighlight {
+    #[knuffel(child, unwrap(argument))]
+    pub color: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub width: Option<FloatOrInt<0, 1000>>,
+}
+
+#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+pub struct EffectPreset {
+    #[knuffel(argument)]
+    pub name: String,
+    
+    #[knuffel(child, unwrap(argument))]
+    pub material: Option<String>,
+    
+    #[knuffel(child)]
+    pub corner_radius: Option<CornerRadius>,
+    
+    #[knuffel(child, unwrap(argument))]
+    pub shadow: Option<String>,
+    
+    #[knuffel(child, unwrap(argument))]
+    pub border: Option<String>,
 }
 
 #[cfg(test)]
