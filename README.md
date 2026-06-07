@@ -1,18 +1,29 @@
 <h1 align="center"><img alt="niri" src="https://github.com/user-attachments/assets/07d05cd0-d5dc-4a28-9a35-51bae8f119a0"></h1>
-<p align="center">A scrollable-tiling Wayland compositor.</p>
+<p align="center">A scrollable-tiling Wayland compositor (niri fork with liquid extensibility platform).</p>
 <p align="center">
-    <a href="https://matrix.to/#/#niri:matrix.org"><img alt="Matrix" src="https://img.shields.io/badge/matrix-%23niri-blue?logo=matrix"></a>
+    <a href="https://github.com/niri-wm/niri"><img alt="Forked From" src="https://img.shields.io/badge/fork-niri--wm%2Fniri-blue?logo=git"></a>
     <a href="https://github.com/niri-wm/niri/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/niri-wm/niri"></a>
-    <a href="https://github.com/niri-wm/niri/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/niri-wm/niri?logo=github"></a>
 </p>
 
 <p align="center">
-    <a href="https://niri-wm.github.io/niri/Getting-Started.html">Getting Started</a> | <a href="https://niri-wm.github.io/niri/Configuration%3A-Introduction.html">Configuration</a> | <a href="https://github.com/niri-wm/niri/discussions/325">Setup&nbsp;Showcase</a>
+    <a href="https://niri-wm.github.io/niri/Getting-Started.html">Getting Started (Upstream)</a> | <a href="https://niri-wm.github.io/niri/Configuration%3A-Introduction.html">Configuration (Upstream)</a>
 </p>
 
 <img width="1280" height="720" alt="niri with a few windows open" src="https://github.com/user-attachments/assets/dea5909e-1859-4aaa-9d88-d37f9663e00b" />
 
+## Fork Notice & Added Features
+
+This repository is a fork of the original [niri](https://github.com/niri-wm/niri) project, extending it with several custom features and experimental compositor effects:
+
+*   **niri-liquid Extensibility Platform (v1.1-1.3, Phase 0-4)**: Adds an extensibility API allowing custom compositor control, rendering modifications, and status event streaming (via the `liquid` event bus).
+*   **Scratch Column / Special Workspace**: Added support for toggleable scratch columns/windows and workspace retention to prevent scratch sources from being prematurely cleaned up.
+*   **Enhanced Liquid Shaders**: Features custom shader parameters like Fresnel effects, active animation presets parsed directly from configuration, bloom modifiers, edge highlights, and time-based rendering sweeps.
+*   **Startup Safe Mode & Crash Detection**:
+    *   Automatically detects crash conditions via a runtime directory sentinel file (`niri-crash-sentinel`).
+    *   If a crash is detected, the config fails to load, or `--safe-mode` is passed via CLI / `NIRI_SAFE_MODE=1` is set, it falls back to a lightweight, script-disabled, and low-resource animation safe-profile at startup.
+
 ## About
+
 
 Windows are arranged in columns on an infinite strip going to the right.
 Opening a new window never causes existing windows to resize.
