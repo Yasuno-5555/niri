@@ -29,7 +29,7 @@ pub fn set_render_time(time: f32) {
     RENDER_TIME.with(|t| t.set(time));
 }
 
-fn get_render_time() -> f32 {
+pub(crate) fn get_render_time() -> f32 {
     RENDER_TIME.with(|t| t.get())
 }
 

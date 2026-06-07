@@ -24,7 +24,10 @@ use niri::utils::spawning::{
     spawn, spawn_sh, store_and_increase_nofile_rlimit, CHILD_DISPLAY, CHILD_ENV,
     REMOVE_ENV_RUST_BACKTRACE, REMOVE_ENV_RUST_LIB_BACKTRACE,
 };
-use niri::utils::{cause_panic, version, watcher, xwayland, IS_SYSTEMD_SERVICE};
+use niri::utils::{
+    cause_panic, remove_crash_sentinel, version, watcher, write_crash_sentinel, xwayland,
+    IS_SYSTEMD_SERVICE,
+};
 use niri_config::{Config, ConfigPath};
 use niri_ipc::socket::SOCKET_PATH_ENV;
 use sd_notify::NotifyState;
@@ -156,6 +159,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let config_includes = config_load_result.includes;
 
+    // ── Safe mode determination ───────────────────────────────────────
+    // Check whether we should start in safe mode. Four triggers:
+    // 1. --safe-mode CLI flag (manual recovery)
+    // 2. Previous session crashed (crash sentinel still present)
+    // 3. Config failed to parse (config is potentially broken)
+    // 4. NIRI_SAFE_MODE environment variable is set to "1"
+    let prev_crashed = write_crash_sentinel();
+    let env_safe_mode = env::var_os("NIRI_SAFE_MODE").is_some_and(|v| v == "1");
+    let start_in_safe_mode = cli.safe_mode
+        || prev_crashed
+        || config_errored
+        || env_safe_mode;
+
+    if cli.safe_mode {
+        info!("starting in safe mode (--safe-mode flag)");
+    }
+    if prev_crashed {
+        warn!("previous session may have crashed; starting in safe mode");
+    }
+    if config_errored {
+        warn!("config had errors; starting in safe mode");
+    }
+    if env_safe_mode {
+        info!("starting in safe mode (NIRI_SAFE_MODE=1)");
+    }
+
     let spawn_at_startup = mem::take(&mut config.spawn_at_startup);
     let spawn_sh_at_startup = mem::take(&mut config.spawn_sh_at_startup);
     *CHILD_ENV.write().unwrap() = mem::take(&mut config.environment);
@@ -184,6 +213,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         cli.session,
     )
     .unwrap();
+
+    // Activate safe mode at startup if needed.
+    if start_in_safe_mode {
+        state.niri.activate_safe_mode_on_startup();
+    }
 
     // Set WAYLAND_DISPLAY for children.
     let socket_name = state.niri.socket_name.as_deref().unwrap();
@@ -269,6 +303,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     event_loop
         .run(None, &mut state, |state| state.refresh_and_flush_clients())
         .unwrap();
+
+    // Clean exit — remove the crash sentinel so next startup doesn't
+    // think we crashed.
+    remove_crash_sentinel();
 
     Ok(())
 }

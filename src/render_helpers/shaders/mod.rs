@@ -54,6 +54,7 @@ impl Shaders {
                 UniformName::new("geo_size", UniformType::_2f),
                 UniformName::new("outer_radius", UniformType::_4f),
                 UniformName::new("border_width", UniformType::_1f),
+                UniformName::new("sweep_progress", UniformType::_1f),
             ],
             &[],
         )

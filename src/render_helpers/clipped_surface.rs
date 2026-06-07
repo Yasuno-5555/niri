@@ -29,6 +29,7 @@ pub struct ClippedSurfaceRenderElement<R: NiriRenderer> {
     saturation: f32,
     specular: f32,
     edge_highlight: f32,
+    bloom: f32,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -51,6 +52,7 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
         saturation: f32,
         specular: f32,
         edge_highlight: f32,
+        bloom: f32,
     ) -> Self {
         Self {
             inner: elem,
@@ -65,6 +67,7 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
             saturation,
             specular,
             edge_highlight,
+            bloom,
         }
     }
 
@@ -133,6 +136,8 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
         uniforms.push(Uniform::new("bg_color", [0f32, 0., 0., 0.]));
         uniforms.push(Uniform::new("specular", self.specular));
         uniforms.push(Uniform::new("edge_highlight", self.edge_highlight));
+        uniforms.push(Uniform::new("bloom", self.bloom));
+        uniforms.push(Uniform::new("time", super::background_effect::get_render_time()));
 
         uniforms
     }

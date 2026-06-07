@@ -4084,6 +4084,49 @@ impl Niri {
         }
     }
 
+    /// Activate safe mode at startup without toggling.
+    ///
+    /// Unlike `toggle_safe_mode`, this only sets safe mode on (never off)
+    /// and is intended for automatic fallback when a startup error is detected
+    /// or when `--safe-mode` is passed on the CLI.
+    ///
+    /// When entering safe mode, scripts and expensive effects are disabled,
+    /// and a safe material/animation profile is applied.
+    pub fn activate_safe_mode_on_startup(&mut self) {
+        if self.safe_mode_active {
+            return;
+        }
+        self.safe_mode_active = true;
+
+        self.state_bus.publish(
+            crate::liquid::state_bus::LiquidEvent::SafeModeToggled {
+                active: true,
+            },
+        );
+
+        info!("entering safe mode at startup — disabling scripts and expensive effects");
+
+        let config = self.config.borrow();
+        let safe_material = config.safe_mode.material.clone();
+        let safe_anim = config.safe_mode.animation_profile.clone();
+        drop(config);
+
+        // Apply safe animation profile as override.
+        {
+            let mut config = self.config.borrow_mut();
+            config.adaptive_animation_profile_override = Some(safe_anim);
+        }
+
+        // Apply safe material through layout update.
+        if !safe_material.is_empty() {
+            let config = self.config.borrow();
+            self.layout.update_config(&config);
+        }
+
+        self.trigger_status_update();
+        self.queue_redraw_all();
+    }
+
     /// Toggle safe mode on or off.
     ///
     /// When entering safe mode, scripts and expensive effects are disabled,

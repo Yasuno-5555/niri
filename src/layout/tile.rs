@@ -1351,6 +1351,8 @@ impl<W: LayoutElement> Tile<W> {
                                     rules.background_effect.specular.unwrap_or(0.0) as f32;
                                 let edge_highlight_val =
                                     rules.background_effect.edge_highlight.unwrap_or(0.0) as f32;
+                                let bloom_val =
+                                    rules.background_effect.bloom.unwrap_or(0.0) as f32;
 
                                 let adjusted_refraction = refraction_val + 0.025 * peak_p;
                                 let adjusted_aberration = aberration_val + 0.04 * peak_p;
@@ -1370,6 +1372,7 @@ impl<W: LayoutElement> Tile<W> {
                                     adjusted_saturation,
                                     specular_val,
                                     edge_highlight_val,
+                                    bloom_val,
                                 )
                                 .into();
                             }

@@ -26,6 +26,14 @@ pub struct Cli {
     /// on a TTY as your non-main compositor instance, to avoid messing up the global environment.
     #[arg(long)]
     pub session: bool,
+    /// Start in safe mode, disabling scripts, gestures, and expensive effects.
+    ///
+    /// Useful for recovering from a misbehaving config or script that causes niri
+    /// to crash on startup. Safe mode can also be toggled at runtime with the
+    /// `toggle-safe-mode` action.
+    #[arg(long)]
+    pub safe_mode: bool,
+
     /// Command to run upon compositor startup.
     #[arg(last = true)]
     pub command: Vec<OsString>,

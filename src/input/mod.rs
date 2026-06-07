@@ -2482,8 +2482,8 @@ impl State {
                 }
                 self.niri.trigger_status_update();
                 self.niri.queue_redraw_all();
-                // Dispatch for Mode HUD feedback.
-                self.show_dispatch_feedback(&action);
+                // Show HUD feedback without re-dispatching the action.
+                self.niri.mode_hud.trigger(format!("PROFILE · {profile}"));
             }
             Action::ToggleScratchColumn(ref name) => {
                 if self.niri.toggle_scratch_column(name) {
@@ -2491,8 +2491,9 @@ impl State {
                     self.niri.layer_shell_on_demand_focus = None;
                     self.niri.trigger_status_update();
                     self.niri.queue_redraw_all();
+                    // Show HUD feedback without re-dispatching the action.
+                    self.niri.mode_hud.trigger(format!("SCRATCH · {name}"));
                 }
-                self.show_dispatch_feedback(&action);
             }
             Action::SetMaterial(ref material_name) => {
                 let focus_ptr = self
@@ -2517,9 +2518,10 @@ impl State {
                     if found {
                         self.niri.trigger_status_update();
                         self.niri.queue_redraw_all();
+                        // Show HUD feedback without re-dispatching the action.
+                        self.niri.mode_hud.trigger(format!("MATERIAL · {material_name}"));
                     }
                 }
-                self.show_dispatch_feedback(&action);
             }
             Action::ToggleActionPalette | Action::ToggleSafeMode => {
                 use crate::liquid::dispatcher::DispatchSource;
@@ -2529,17 +2531,6 @@ impl State {
                         self.niri.mode_hud.trigger(msg);
                     }
                 }
-            }
-        }
-    }
-
-    /// Show dispatch result feedback via Mode HUD.
-    fn show_dispatch_feedback(&mut self, action: &Action) {
-        use crate::liquid::dispatcher::DispatchSource;
-        let result = self.niri.dispatch(action, DispatchSource::Keybind);
-        if let Some(msg) = result.message {
-            if !msg.is_empty() {
-                self.niri.mode_hud.trigger(msg);
             }
         }
     }

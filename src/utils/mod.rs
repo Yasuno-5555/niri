@@ -11,7 +11,7 @@ use std::{f64, fmt};
 
 use anyhow::{ensure, Context};
 use bitflags::bitflags;
-use directories::UserDirs;
+use directories::{BaseDirs, UserDirs};
 use git_version::git_version;
 use niri_config::{Config, OutputName};
 use smithay::backend::renderer::utils::{
@@ -47,6 +47,38 @@ pub mod watcher;
 pub mod xwayland;
 
 pub static IS_SYSTEMD_SERVICE: AtomicBool = AtomicBool::new(false);
+
+/// Returns the path where the crash sentinel file is stored.
+///
+/// The crash sentinel is written at startup and removed on clean exit.
+/// If it still exists on next startup, it means the previous session crashed.
+pub fn crash_sentinel_path() -> Option<PathBuf> {
+    let mut path = BaseDirs::new()?.runtime_dir()?.to_owned();
+    path.push("niri-crash-sentinel");
+    Some(path)
+}
+
+/// Writes the crash sentinel file to indicate the compositor is running.
+///
+/// If the file exists from a previous crash, returns `true` (crash detected).
+/// Otherwise creates the file and returns `false`.
+pub fn write_crash_sentinel() -> bool {
+    let Some(path) = crash_sentinel_path() else {
+        return false;
+    };
+    let was_crashed = path.exists();
+    if let Err(err) = std::fs::write(&path, &std::process::id().to_string()) {
+        warn!("error writing crash sentinel: {err:?}");
+    }
+    was_crashed
+}
+
+/// Removes the crash sentinel file on clean exit.
+pub fn remove_crash_sentinel() {
+    if let Some(path) = crash_sentinel_path() {
+        let _ = std::fs::remove_file(&path);
+    }
+}
 
 use id::IdCounter;
 
