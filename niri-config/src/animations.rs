@@ -839,10 +839,138 @@ where
             }),
         };
 
-        let animation =
-            Animation::decode_node_allow_args(node, ctx, default_anim, |_, _| Ok(false))?;
+        let mut easing_override: Option<EasingParams> = None;
+        let animation = Animation::decode_node_allow_args(
+            node,
+            ctx,
+            default_anim,
+            |child, ctx| {
+                if &**child.node_name == "easing" {
+                    if easing_override.is_some() {
+                        ctx.emit_error(DecodeError::unexpected(
+                            &child.node_name,
+                            "node",
+                            "duplicate node `easing`, single node expected",
+                        ));
+                    } else {
+                        easing_override = Some(EasingParams::decode_node(child, ctx)?);
+                    }
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            },
+        )?;
+
+        // If an `easing` node was supplied, override the kind.
+        let animation = if let Some(easing) = easing_override {
+            Animation {
+                off: animation.off,
+                kind: Kind::Easing(easing),
+            }
+        } else {
+            animation
+        };
 
         Ok(Self { name, animation })
+    }
+}
+
+/// Parses `easing duration-ms=<u32> curve="<name>"` as a property-based node,
+/// symmetric to the `spring` node. Used inside `animation-preset { ... }`.
+///
+/// Example:
+/// ```kdl
+/// animation-preset "liquid-melt" {
+///     easing duration-ms=200 curve="ease-out-cubic"
+/// }
+/// ```
+impl<S> knuffel::Decode<S> for EasingParams
+where
+    S: knuffel::traits::ErrorSpan,
+{
+    fn decode_node(
+        node: &knuffel::ast::SpannedNode<S>,
+        ctx: &mut knuffel::decode::Context<S>,
+    ) -> Result<Self, DecodeError<S>> {
+        if let Some(type_name) = &node.type_name {
+            ctx.emit_error(DecodeError::unexpected(
+                type_name,
+                "type name",
+                "no type name expected for this node",
+            ));
+        }
+        if let Some(val) = node.arguments.first() {
+            ctx.emit_error(DecodeError::unexpected(
+                &val.literal,
+                "argument",
+                "unexpected argument",
+            ));
+        }
+        for child in node.children() {
+            ctx.emit_error(DecodeError::unexpected(
+                child,
+                "node",
+                format!("unexpected node `{}`", child.node_name.escape_default()),
+            ));
+        }
+
+        let mut duration_ms: Option<u32> = None;
+        let mut curve: Option<Curve> = None;
+
+        for (name, val) in &node.properties {
+            match &***name {
+                "duration-ms" => {
+                    let v: u32 = knuffel::traits::DecodeScalar::decode(val, ctx)?;
+                    duration_ms = Some(v);
+                }
+                "curve" => {
+                    let s: String = knuffel::traits::DecodeScalar::decode(val, ctx)?;
+                    let parsed = match s.as_str() {
+                        "linear" => Some(Curve::Linear),
+                        "ease-out-quad" => Some(Curve::EaseOutQuad),
+                        "ease-out-cubic" => Some(Curve::EaseOutCubic),
+                        "ease-out-expo" => Some(Curve::EaseOutExpo),
+                        unexpected => {
+                            ctx.emit_error(DecodeError::unexpected(
+                                name,
+                                "property value",
+                                format!(
+                                    "unexpected animation curve `{unexpected}`. \
+                                    Supported values: \
+                                    `linear`, `ease-out-quad`, `ease-out-cubic`, `ease-out-expo`."
+                                ),
+                            ));
+                            None
+                        }
+                    };
+                    curve = parsed;
+                }
+                name_str => {
+                    ctx.emit_error(DecodeError::unexpected(
+                        name,
+                        "property",
+                        format!("unexpected property `{}`", name_str.escape_default()),
+                    ));
+                }
+            }
+        }
+
+        let duration_ms = duration_ms.ok_or_else(|| {
+            DecodeError::missing(node, "property `duration-ms` is required")
+        })?;
+        let curve = curve.ok_or_else(|| {
+            DecodeError::missing(node, "property `curve` is required")
+        })?;
+
+        if duration_ms == 0 {
+            ctx.emit_error(DecodeError::conversion(
+                node,
+                "duration-ms must be greater than 0",
+            ));
+        }
+
+        Ok(EasingParams { duration_ms, curve })
     }
 }
 
@@ -952,4 +1080,246 @@ pub struct AnimationProfile {
 
     #[knuffel(child, unwrap(argument))]
     pub workspace: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Config;
+
+    // ── animation-preset easing パーサーテスト ────────────────────────
+
+    #[test]
+    fn animation_preset_easing_ease_out_cubic() {
+        let config = Config::parse_mem(
+            r#"
+            animation-preset "liquid-melt" {
+                easing duration-ms=200 curve="ease-out-cubic"
+            }
+            "#,
+        )
+        .unwrap();
+
+        let preset = config
+            .animation_presets
+            .iter()
+            .find(|p| p.name == "liquid-melt")
+            .expect("preset not found");
+
+        assert_eq!(
+            preset.animation.kind,
+            Kind::Easing(EasingParams {
+                duration_ms: 200,
+                curve: Curve::EaseOutCubic,
+            }),
+            "easing preset should parse correctly"
+        );
+        assert!(!preset.animation.off);
+    }
+
+    #[test]
+    fn animation_preset_easing_ease_out_quad() {
+        let config = Config::parse_mem(
+            r#"
+            animation-preset "shrinkfade" {
+                easing duration-ms=150 curve="ease-out-quad"
+            }
+            "#,
+        )
+        .unwrap();
+
+        let preset = config
+            .animation_presets
+            .iter()
+            .find(|p| p.name == "shrinkfade")
+            .expect("preset not found");
+
+        assert_eq!(
+            preset.animation.kind,
+            Kind::Easing(EasingParams {
+                duration_ms: 150,
+                curve: Curve::EaseOutQuad,
+            })
+        );
+    }
+
+    #[test]
+    fn animation_preset_easing_ease_out_expo() {
+        let config = Config::parse_mem(
+            r#"
+            animation-preset "fast-open" {
+                easing duration-ms=120 curve="ease-out-expo"
+            }
+            "#,
+        )
+        .unwrap();
+
+        let preset = config
+            .animation_presets
+            .iter()
+            .find(|p| p.name == "fast-open")
+            .expect("preset not found");
+
+        assert_eq!(
+            preset.animation.kind,
+            Kind::Easing(EasingParams {
+                duration_ms: 120,
+                curve: Curve::EaseOutExpo,
+            })
+        );
+    }
+
+    #[test]
+    fn animation_preset_easing_linear() {
+        let config = Config::parse_mem(
+            r#"
+            animation-preset "flat" {
+                easing duration-ms=100 curve="linear"
+            }
+            "#,
+        )
+        .unwrap();
+
+        let preset = config
+            .animation_presets
+            .iter()
+            .find(|p| p.name == "flat")
+            .expect("preset not found");
+
+        assert_eq!(
+            preset.animation.kind,
+            Kind::Easing(EasingParams {
+                duration_ms: 100,
+                curve: Curve::Linear,
+            })
+        );
+    }
+
+    #[test]
+    fn animation_preset_spring_still_works() {
+        let config = Config::parse_mem(
+            r#"
+            animation-preset "liquid-pop" {
+                spring damping-ratio=0.55 stiffness=800 epsilon=0.0001
+            }
+            "#,
+        )
+        .unwrap();
+
+        let preset = config
+            .animation_presets
+            .iter()
+            .find(|p| p.name == "liquid-pop")
+            .expect("preset not found");
+
+        assert_eq!(
+            preset.animation.kind,
+            Kind::Spring(SpringParams {
+                damping_ratio: 0.55,
+                stiffness: 800,
+                epsilon: 0.0001,
+            })
+        );
+    }
+
+    #[test]
+    fn animation_preset_easing_all_four_supported_curves() {
+        // Verify all four documented curve values parse without error.
+        let curves = ["linear", "ease-out-quad", "ease-out-cubic", "ease-out-expo"];
+        for curve in &curves {
+            let src = format!(
+                "animation-preset \"test-{curve}\" {{\n    easing duration-ms=100 curve=\"{curve}\"\n}}"
+            );
+            let config = Config::parse_mem(&src)
+                .unwrap_or_else(|e| panic!("parse failed for curve={curve}: {e:?}"));
+            let preset = config
+                .animation_presets
+                .iter()
+                .find(|p| p.name == format!("test-{curve}"))
+                .expect("preset not found");
+            assert!(
+                matches!(preset.animation.kind, Kind::Easing(_)),
+                "curve={curve} should produce Easing kind"
+            );
+        }
+    }
+
+    #[test]
+    fn animation_preset_easing_invalid_curve_is_error() {
+        // Unknown curve names should fail validation.
+        let result = Config::parse_mem(
+            r#"
+            animation-preset "bad" {
+                easing duration-ms=100 curve="nonexistent-curve"
+            }
+            "#,
+        );
+        assert!(result.is_err(), "invalid curve should produce parse error");
+    }
+
+    #[test]
+    fn animation_preset_easing_off_flag() {
+        let config = Config::parse_mem(
+            r#"
+            animation-preset "disabled" {
+                off
+                easing duration-ms=100 curve="linear"
+            }
+            "#,
+        )
+        .unwrap();
+
+        let preset = config
+            .animation_presets
+            .iter()
+            .find(|p| p.name == "disabled")
+            .expect("preset not found");
+
+        assert!(preset.animation.off, "off flag should be respected");
+        assert_eq!(
+            preset.animation.kind,
+            Kind::Easing(EasingParams {
+                duration_ms: 100,
+                curve: Curve::Linear,
+            })
+        );
+    }
+
+    #[test]
+    fn animations_kdl_file_all_presets() {
+        // Smoke test: parse the full animations.kdl content from the user config.
+        // This exercises the exact syntax that was previously failing.
+        let kdl = r#"
+            animation-preset "liquid-melt" {
+                easing duration-ms=200 curve="ease-out-cubic"
+            }
+            animation-preset "shrinkfade" {
+                easing duration-ms=150 curve="ease-out-quad"
+            }
+            animation-preset "fade-shrink" {
+                easing duration-ms=180 curve="ease-out-quad"
+            }
+            animation-preset "minimal-slide" {
+                easing duration-ms=120 curve="ease-out-quad"
+            }
+            animation-preset "liquid-pop" {
+                spring damping-ratio=0.55 stiffness=800 epsilon=0.0001
+            }
+        "#;
+
+        let config =
+            Config::parse_mem(kdl).expect("animations.kdl content should parse without error");
+
+        let names: Vec<_> = config
+            .animation_presets
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect();
+
+        assert!(names.contains(&"liquid-melt"));
+        assert!(names.contains(&"shrinkfade"));
+        assert!(names.contains(&"fade-shrink"));
+        assert!(names.contains(&"minimal-slide"));
+        assert!(names.contains(&"liquid-pop"));
+    }
 }
