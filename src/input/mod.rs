@@ -3962,7 +3962,10 @@ impl State {
             return;
         }
 
-        if event.fingers() == 3 {
+        let fingers = event.fingers();
+        let fingers_u8 = u8::try_from(fingers).ok();
+
+        if fingers >= 3 {
             if let Some(output) = self.niri.output_under_cursor() {
                 let pointer = self.niri.seat.get_pointer().unwrap();
                 let pointer_pos = pointer.current_location();
@@ -3976,6 +3979,8 @@ impl State {
                         .gesture_edges
                         .iter()
                         .find(|gesture| {
+                            fingers_u8.is_some_and(|count| gesture.fingers() == count)
+                                &&
                             gesture.matches_start_region(local_pos, output_size)
                                 && gesture.parsed_action().is_some()
                         })
@@ -3993,7 +3998,7 @@ impl State {
                         } else {
                             false
                         };
-                        self.niri.gesture_edge_swipe_3f = Some(crate::niri::GestureEdgeSwipe {
+                        self.niri.gesture_edge_swipe = Some(crate::niri::GestureEdgeSwipe {
                             output,
                             gesture,
                             progress: 0.0,
@@ -4005,11 +4010,15 @@ impl State {
                 }
             }
 
-            self.niri.gesture_swipe_3f_cumulative = Some((0., 0.));
+            if fingers == 3 {
+                self.niri.gesture_swipe_cumulative = Some((0., 0.));
 
-            // We handled this event.
-            return;
-        } else if event.fingers() == 4 {
+                // We handled this event.
+                return;
+            }
+        }
+
+        if fingers == 4 {
             self.niri.layout.overview_gesture_begin();
             self.niri.queue_redraw_all();
 
@@ -4063,7 +4072,7 @@ impl State {
 
         let is_overview_open = self.niri.layout.is_overview_open();
 
-        if let Some(gesture) = &mut self.niri.gesture_edge_swipe_3f {
+        if let Some(gesture) = &mut self.niri.gesture_edge_swipe {
             if let Some(output_geo) = self.niri.global_space.output_geometry(&gesture.output) {
                 let output_w = output_geo.size.w.max(1) as f64;
                 let output_h = output_geo.size.h.max(1) as f64;
@@ -4092,14 +4101,14 @@ impl State {
             return;
         }
 
-        if let Some((cx, cy)) = &mut self.niri.gesture_swipe_3f_cumulative {
+        if let Some((cx, cy)) = &mut self.niri.gesture_swipe_cumulative {
             *cx += delta_x;
             *cy += delta_y;
 
             // Check if the gesture moved far enough to decide. Threshold copied from GNOME Shell.
             let (cx, cy) = (*cx, *cy);
             if cx * cx + cy * cy >= 16. * 16. {
-                self.niri.gesture_swipe_3f_cumulative = None;
+                self.niri.gesture_swipe_cumulative = None;
 
                 if let Some(output) = self.niri.output_under_cursor() {
                     if cx.abs() > cy.abs() {
@@ -4186,9 +4195,9 @@ impl State {
     }
 
     fn on_gesture_swipe_end<I: InputBackend>(&mut self, event: I::GestureSwipeEndEvent) {
-        self.niri.gesture_swipe_3f_cumulative = None;
+        self.niri.gesture_swipe_cumulative = None;
 
-        if let Some(gesture) = self.niri.gesture_edge_swipe_3f.take() {
+        if let Some(gesture) = self.niri.gesture_edge_swipe.take() {
             let committed = gesture.progress >= gesture.gesture.reveal_ratio();
 
             if let Some(progress_map) = gesture.gesture.progress_map.as_ref() {

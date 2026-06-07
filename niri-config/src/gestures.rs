@@ -47,6 +47,8 @@ pub struct GestureEdge {
     #[knuffel(argument)]
     pub edge: String,
     #[knuffel(child, unwrap(argument))]
+    pub fingers: Option<u8>,
+    #[knuffel(child, unwrap(argument))]
     pub action: Option<String>,
     #[knuffel(child, unwrap(argument))]
     pub reveal_ratio: Option<FloatOrInt<0, 1>>,
@@ -57,6 +59,10 @@ pub struct GestureEdge {
 }
 
 impl GestureEdge {
+    pub fn fingers(&self) -> u8 {
+        self.fingers.unwrap_or(3)
+    }
+
     pub fn parsed_action(&self) -> Option<Action> {
         let action = self.action.as_deref()?.trim();
         if let Ok(doc) = knuffel::parse::<GestureEdgeActionDoc>("gesture-edge-action.kdl", action) {
@@ -224,6 +230,7 @@ mod tests {
     fn parse_gesture_edge_actions_via_action_decoder() {
         let gesture = GestureEdge {
             edge: String::from("bottom"),
+            fingers: None,
             action: Some(String::from("toggle-overview")),
             reveal_ratio: None,
             interactive: None,
@@ -233,6 +240,7 @@ mod tests {
 
         let gesture = GestureEdge {
             edge: String::from("bottom"),
+            fingers: None,
             action: Some(String::from("focus-workspace dev")),
             reveal_ratio: None,
             interactive: None,
@@ -247,6 +255,7 @@ mod tests {
 
         let gesture = GestureEdge {
             edge: String::from("bottom"),
+            fingers: None,
             action: Some(String::from("move-column-to-index 3")),
             reveal_ratio: None,
             interactive: None,
