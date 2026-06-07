@@ -8,6 +8,8 @@ use std::sync::{Arc, Mutex};
 use std::{env, io, process};
 
 use anyhow::Context;
+
+use crate::dispatch::parse_dispatch;
 use async_channel::{Receiver, Sender, TrySendError};
 use calloop::futures::Scheduler;
 use calloop::io::Async;
@@ -454,6 +456,170 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
             let state = ctx.event_stream_state.borrow();
             let casts = state.casts.casts.values().cloned().collect();
             Response::Casts(casts)
+        }
+        Request::DispatchDispatcher { command } => {
+            let action = parse_dispatch(&command)
+                .map_err(|err| format!("dispatch parse error: {err}"))?;
+            validate_action(&action)?;
+
+            let (tx, rx) = async_channel::bounded(1);
+            let action = niri_config::Action::from(action);
+            ctx.event_loop.insert_idle(move |state| {
+                state.niri.advance_animations();
+                state.do_action(action, false);
+                let _ = tx.send_blocking(());
+            });
+            let _ = rx.recv().await;
+            Response::Handled
+        }
+        Request::Capabilities => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let caps: Vec<String> = state
+                    .niri
+                    .capabilities()
+                    .iter()
+                    .map(|c| c.name().to_string())
+                    .collect();
+                let _ = tx.send_blocking(caps);
+            });
+            let caps = rx.recv().await
+                .map_err(|_| String::from("error getting capabilities"))?;
+            Response::Capabilities(caps)
+        }
+        Request::Actions => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let actions: Vec<niri_ipc::ActionDescriptor> = state
+                    .niri
+                    .action_registry()
+                    .all()
+                    .iter()
+                    .map(|a| niri_ipc::ActionDescriptor {
+                        id: a.id.clone(),
+                        label: a.label.clone(),
+                        category: format!("{:?}", a.category),
+                        default_bind: a.default_bind.clone(),
+                        args: a.args.iter().map(|arg| niri_ipc::ActionArgDescriptor {
+                            name: arg.name.clone(),
+                            description: arg.description.clone(),
+                            required: arg.required,
+                            examples: arg.examples.clone(),
+                        }).collect(),
+                        source: format!("{:?}", a.source),
+                        capability: a.capability.map(|c| c.name().to_string()),
+                    })
+                    .collect();
+                let _ = tx.send_blocking(actions);
+            });
+            let actions = rx.recv().await
+                .map_err(|_| String::from("error getting actions"))?;
+            Response::Actions(actions)
+        }
+        Request::Events => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let events: Vec<String> = state
+                    .niri
+                    .state_bus
+                    .snapshot()
+                    .iter()
+                    .map(|e| format!("{:?}", e))
+                    .collect();
+                let _ = tx.send_blocking(events);
+            });
+            let events = rx.recv().await
+                .map_err(|_| String::from("error getting events"))?;
+            Response::Events(events)
+        }
+        Request::Inspect => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let mut lines = Vec::new();
+                if let Some(focused) = state.niri.layout.focus() {
+                    let rules = focused.window_rules();
+                    lines.push(format!(
+                        "workspace: {:?}",
+                        rules.open_on_workspace
+                    ));
+                    lines.push(format!(
+                        "effect_preset: {:?}",
+                        rules.effect_preset
+                    ));
+                    lines.push(format!(
+                        "floating: {}",
+                        focused.is_floating()
+                    ));
+                    lines.push(format!(
+                        "opacity: {:?}",
+                        rules.opacity
+                    ));
+                } else {
+                    lines.push("no focused window".into());
+                }
+                let _ = tx.send_blocking(lines);
+            });
+            let lines = rx.recv().await
+                .map_err(|_| String::from("error inspecting"))?;
+            Response::Inspect(lines)
+        }
+        Request::TraceRules => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let lines = state.niri.rule_engine.trace(
+                    niri_config::RuleTarget::Window,
+                    None,
+                    None,
+                );
+                let _ = tx.send_blocking(lines);
+            });
+            let lines = rx.recv().await
+                .map_err(|_| String::from("error tracing rules"))?;
+            Response::TraceRules(lines)
+        }
+        Request::Scripts { action } => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let mut lines = Vec::new();
+                match action {
+                    niri_ipc::ScriptsAction::List => {
+                        if state.niri.script_engine.is_enabled() {
+                            let scripts = state.niri.script_engine.list_scripts();
+                            if scripts.is_empty() {
+                                lines.push("no scripts loaded".into());
+                            } else {
+                                lines.push(format!("{} scripts loaded:", scripts.len()));
+                                for s in &scripts {
+                                    lines.push(format!("  {s}"));
+                                }
+                            }
+                        } else {
+                            lines.push("script engine is disabled".into());
+                        }
+                    }
+                    niri_ipc::ScriptsAction::Reload => {
+                        state.niri.script_engine.reload();
+                        lines.push("scripts reloaded".into());
+                        let errors = state.niri.script_engine.errors();
+                        if !errors.is_empty() {
+                            lines.push("errors:".into());
+                            lines.extend(errors);
+                        }
+                    }
+                    niri_ipc::ScriptsAction::Errors => {
+                        let errors = state.niri.script_engine.errors();
+                        if errors.is_empty() {
+                            lines.push("no errors".into());
+                        } else {
+                            lines.extend(errors);
+                        }
+                    }
+                }
+                let _ = tx.send_blocking(lines);
+            });
+            let lines = rx.recv().await
+                .map_err(|_| String::from("error managing scripts"))?;
+            Response::Scripts(lines)
         }
     };
 

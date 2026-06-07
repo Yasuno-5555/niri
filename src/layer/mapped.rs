@@ -101,18 +101,49 @@ impl MappedLayer {
         shadow_config.merge_with(&rules.shadow);
 
         let resolved_animation_open = rules.animation_open.clone().or_else(|| {
-            config.active_animation_profile.as_ref()
-                .and_then(|profile_name| config.animation_profiles.iter().find(|p| &p.name == profile_name))
+            config
+                .resolved_animation_profile()
                 .and_then(|profile| profile.layer_open.as_ref())
                 .map(|preset_name| {
-                    let (style, from_scale, direction, duration_ms, curve) = match preset_name.as_str() {
-                        "scale-fade" => (Some("scale-fade".to_owned()), Some(niri_config::FloatOrInt(0.95)), None, Some(140), Some("ease-out-expo".to_owned())),
-                        "fade-slide" => (Some("fade-slide".to_owned()), None, Some("down".to_owned()), Some(100), None),
-                        "slide-glass" => (Some("slide-glass".to_owned()), None, Some("down".to_owned()), Some(150), None),
-                        "elastic-glass" => (Some("scale-fade".to_owned()), Some(niri_config::FloatOrInt(0.90)), None, Some(200), None),
-                        "glass-slide" => (Some("fade-slide".to_owned()), None, Some("bottom".to_owned()), Some(160), None),
-                        _ => (Some("fade".to_owned()), None, None, Some(120), None),
-                    };
+                    let (style, from_scale, direction, duration_ms, curve) =
+                        match preset_name.as_str() {
+                            "scale-fade" => (
+                                Some("scale-fade".to_owned()),
+                                Some(niri_config::FloatOrInt(0.95)),
+                                None,
+                                Some(140),
+                                Some("ease-out-expo".to_owned()),
+                            ),
+                            "fade-slide" => (
+                                Some("fade-slide".to_owned()),
+                                None,
+                                Some("down".to_owned()),
+                                Some(100),
+                                None,
+                            ),
+                            "slide-glass" => (
+                                Some("slide-glass".to_owned()),
+                                None,
+                                Some("down".to_owned()),
+                                Some(150),
+                                None,
+                            ),
+                            "elastic-glass" => (
+                                Some("scale-fade".to_owned()),
+                                Some(niri_config::FloatOrInt(0.90)),
+                                None,
+                                Some(200),
+                                None,
+                            ),
+                            "glass-slide" => (
+                                Some("fade-slide".to_owned()),
+                                None,
+                                Some("bottom".to_owned()),
+                                Some(160),
+                                None,
+                            ),
+                            _ => (Some("fade".to_owned()), None, None, Some(120), None),
+                        };
                     niri_config::layer_rule::LayerAnimationRule {
                         style,
                         from_scale,
@@ -179,18 +210,49 @@ impl MappedLayer {
         self.move_animation_config = config.animations.window_movement.0;
 
         self.resolved_animation_open = self.rules.animation_open.clone().or_else(|| {
-            config.active_animation_profile.as_ref()
-                .and_then(|profile_name| config.animation_profiles.iter().find(|p| &p.name == profile_name))
+            config
+                .resolved_animation_profile()
                 .and_then(|profile| profile.layer_open.as_ref())
                 .map(|preset_name| {
-                    let (style, from_scale, direction, duration_ms, curve) = match preset_name.as_str() {
-                        "scale-fade" => (Some("scale-fade".to_owned()), Some(niri_config::FloatOrInt(0.95)), None, Some(140), Some("ease-out-expo".to_owned())),
-                        "fade-slide" => (Some("fade-slide".to_owned()), None, Some("down".to_owned()), Some(100), None),
-                        "slide-glass" => (Some("slide-glass".to_owned()), None, Some("down".to_owned()), Some(150), None),
-                        "elastic-glass" => (Some("scale-fade".to_owned()), Some(niri_config::FloatOrInt(0.90)), None, Some(200), None),
-                        "glass-slide" => (Some("fade-slide".to_owned()), None, Some("bottom".to_owned()), Some(160), None),
-                        _ => (Some("fade".to_owned()), None, None, Some(120), None),
-                    };
+                    let (style, from_scale, direction, duration_ms, curve) =
+                        match preset_name.as_str() {
+                            "scale-fade" => (
+                                Some("scale-fade".to_owned()),
+                                Some(niri_config::FloatOrInt(0.95)),
+                                None,
+                                Some(140),
+                                Some("ease-out-expo".to_owned()),
+                            ),
+                            "fade-slide" => (
+                                Some("fade-slide".to_owned()),
+                                None,
+                                Some("down".to_owned()),
+                                Some(100),
+                                None,
+                            ),
+                            "slide-glass" => (
+                                Some("slide-glass".to_owned()),
+                                None,
+                                Some("down".to_owned()),
+                                Some(150),
+                                None,
+                            ),
+                            "elastic-glass" => (
+                                Some("scale-fade".to_owned()),
+                                Some(niri_config::FloatOrInt(0.90)),
+                                None,
+                                Some(200),
+                                None,
+                            ),
+                            "glass-slide" => (
+                                Some("fade-slide".to_owned()),
+                                None,
+                                Some("bottom".to_owned()),
+                                Some(160),
+                                None,
+                            ),
+                            _ => (Some("fade".to_owned()), None, None, Some(120), None),
+                        };
                     niri_config::layer_rule::LayerAnimationRule {
                         style,
                         from_scale,
@@ -251,7 +313,8 @@ impl MappedLayer {
         presets: &[niri_config::EffectPreset],
         materials: &[niri_config::Material],
     ) -> bool {
-        let new_rules = ResolvedLayerRules::compute(rules, &self.surface, is_at_startup, presets, materials);
+        let new_rules =
+            ResolvedLayerRules::compute(rules, &self.surface, is_at_startup, presets, materials);
         if new_rules == self.rules {
             return false;
         }
@@ -391,16 +454,16 @@ impl MappedLayer {
             let progress = open.value();
             if let Some(rule) = &self.resolved_animation_open {
                 let style = rule.style.as_deref().unwrap_or("fade");
-                
+
                 if style.contains("fade") {
                     alpha *= progress as f32;
                 }
-                
+
                 if style.contains("scale") {
                     let from = rule.from_scale.map(|s| s.0).unwrap_or(0.95);
                     open_scale = from + (1.0 - from) * progress;
                 }
-                
+
                 if style.contains("slide") {
                     let dir = rule.direction.as_deref().unwrap_or("down");
                     let slide_dist = 50.0;

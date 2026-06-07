@@ -13,6 +13,7 @@ use niri_ipc::{
 use serde_json::json;
 
 use crate::cli::Msg;
+use crate::dispatch::parse_dispatch;
 use crate::utils::version;
 
 pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
@@ -49,6 +50,22 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
         Msg::RequestError => Request::ReturnError,
         Msg::OverviewState => Request::OverviewState,
         Msg::Casts => Request::Casts,
+        Msg::Capabilities => Request::Capabilities,
+        Msg::Actions => Request::Actions,
+        Msg::Events => Request::Events,
+        Msg::Inspect => Request::Inspect,
+        Msg::TraceRules => Request::TraceRules,
+        Msg::Scripts { action } => Request::Scripts {
+            action: match action.as_str() {
+                "reload" => niri_ipc::ScriptsAction::Reload,
+                "errors" => niri_ipc::ScriptsAction::Errors,
+                _ => niri_ipc::ScriptsAction::List,
+            },
+        },
+        Msg::Dispatch { args } => {
+            let action = parse_dispatch(&args).context("error parsing dispatch command")?;
+            Request::Action(action)
+        }
     };
 
     let mut socket = Socket::connect().context("error connecting to the niri socket")?;
@@ -317,7 +334,7 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                 println!("No color was picked.");
             }
         }
-        Msg::Action { .. } => {
+        Msg::Action { .. } | Msg::Dispatch { .. } => {
             let Response::Handled = response else {
                 bail!("unexpected response: expected Handled, got {response:?}");
             };
@@ -548,6 +565,96 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
             for cast in casts {
                 print_cast(&cast);
                 println!();
+            }
+        }
+        Msg::Capabilities => {
+            let Response::Capabilities(mut caps) = response else {
+                bail!("unexpected response: expected Capabilities, got {response:?}");
+            };
+
+            if json {
+                let caps =
+                    serde_json::to_string(&caps).context("error formatting response")?;
+                println!("{caps}");
+                return Ok(());
+            }
+
+            caps.sort();
+            for cap in &caps {
+                println!("{cap}");
+            }
+        }
+        Msg::Actions => {
+            let Response::Actions(actions) = response else {
+                bail!("unexpected response: expected Actions, got {response:?}");
+            };
+
+            if json {
+                let actions =
+                    serde_json::to_string(&actions).context("error formatting response")?;
+                println!("{actions}");
+                return Ok(());
+            }
+
+            for action in &actions {
+                let bind = action
+                    .default_bind
+                    .as_deref()
+                    .map(|b| format!(" [{b}]"))
+                    .unwrap_or_default();
+                println!("{:<40} {:<30}{}", action.id, format!("({})", action.category), bind);
+                if !action.args.is_empty() {
+                    for arg in &action.args {
+                        let req = if arg.required { "*" } else { " " };
+                        println!("  {} {:<20} {}", req, arg.name, arg.description);
+                    }
+                }
+            }
+            println!("\n{} actions", actions.len());
+        }
+        Msg::Events => {
+            let Response::Events(events) = response else {
+                bail!("unexpected response: expected Events, got {response:?}");
+            };
+
+            if json {
+                let events =
+                    serde_json::to_string(&events).context("error formatting response")?;
+                println!("{events}");
+                return Ok(());
+            }
+
+            if events.is_empty() {
+                println!("No recent events.");
+            } else {
+                for event in &events {
+                    println!("{event}");
+                }
+                println!("\n{} events", events.len());
+            }
+        }
+        Msg::Inspect => {
+            let Response::Inspect(lines) = response else {
+                bail!("unexpected response: expected Inspect, got {response:?}");
+            };
+            for line in &lines {
+                println!("{line}");
+            }
+        }
+        Msg::TraceRules => {
+            let Response::TraceRules(lines) = response else {
+                bail!("unexpected response: expected TraceRules, got {response:?}");
+            };
+            for line in &lines {
+                println!("{line}");
+            }
+        }
+        Msg::Scripts { .. } => {
+            let Response::Scripts(lines) = response else {
+                bail!("unexpected response: expected Scripts, got {response:?}");
+            };
+            for line in &lines {
+                println!("{line}");
             }
         }
     }

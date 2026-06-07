@@ -382,23 +382,46 @@ impl Thumbnail {
         let clip = move |elem| match elem {
             LayoutElementRenderElement::Wayland(elem) => {
                 if let Some(shader) = clip_shader.clone() {
-                    let liquid = mapped.rules().background_effect.foreground_liquid.unwrap_or(mapped.rules().background_effect.liquid.unwrap_or(false));
+                    let liquid = mapped
+                        .rules()
+                        .background_effect
+                        .foreground_liquid
+                        .unwrap_or(mapped.rules().background_effect.liquid.unwrap_or(false));
                     if liquid || ClippedSurfaceRenderElement::will_clip(&elem, s, geo, radius) {
-                        let elem =
-                            ClippedSurfaceRenderElement::new(
-                                elem,
-                                s,
-                                geo,
-                                shader.clone(),
-                                radius,
-                                liquid,
-                                mapped.rules().background_effect.foreground_refraction.unwrap_or(mapped.rules().background_effect.refraction.unwrap_or(0.0)) as f32,
-                                mapped.rules().background_effect.foreground_chromatic_aberration.unwrap_or(mapped.rules().background_effect.chromatic_aberration.unwrap_or(0.0)) as f32,
-                                mapped.rules().background_effect.noise.unwrap_or(0.0) as f32,
-                                mapped.rules().background_effect.saturation.unwrap_or(1.0) as f32,
-                                mapped.rules().background_effect.specular.unwrap_or(0.0) as f32,
-                                mapped.rules().background_effect.edge_highlight.unwrap_or(0.0) as f32,
-                            );
+                        let elem = ClippedSurfaceRenderElement::new(
+                            elem,
+                            s,
+                            geo,
+                            shader.clone(),
+                            radius,
+                            liquid,
+                            mapped
+                                .rules()
+                                .background_effect
+                                .foreground_refraction
+                                .unwrap_or(
+                                    mapped.rules().background_effect.refraction.unwrap_or(0.0),
+                                ) as f32,
+                            mapped
+                                .rules()
+                                .background_effect
+                                .foreground_chromatic_aberration
+                                .unwrap_or(
+                                    mapped
+                                        .rules()
+                                        .background_effect
+                                        .chromatic_aberration
+                                        .unwrap_or(0.0),
+                                ) as f32,
+                            mapped.rules().background_effect.noise.unwrap_or(0.0) as f32,
+                            mapped.rules().background_effect.saturation.unwrap_or(1.0) as f32,
+                            mapped.rules().background_effect.specular.unwrap_or(0.0) as f32,
+                            mapped
+                                .rules()
+                                .background_effect
+                                .edge_highlight
+                                .unwrap_or(0.0) as f32,
+                        );
                         return ThumbnailRenderElement::ClippedSurface(elem);
                     }
                 }
@@ -427,6 +450,7 @@ impl Thumbnail {
                         radius,
                         scale as f32,
                         1.,
+                        0.,
                     )
                     .into();
                 }
@@ -552,6 +576,7 @@ impl Thumbnail {
                 radius,
                 scale,
                 0.5,
+                0.0,
             );
             background.render(ctx.renderer, loc, &mut |elem| {
                 push(WindowMruUiRenderElement::FocusRing(elem))
@@ -573,6 +598,7 @@ impl Thumbnail {
                 radius.expanded_by(config.width as f32),
                 scale,
                 1.,
+                0.0,
             );
 
             border.render(ctx.renderer, loc, &mut |elem| {

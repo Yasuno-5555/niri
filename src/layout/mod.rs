@@ -140,6 +140,30 @@ pub trait LayoutElement {
         let _ = blur_config;
     }
 
+    fn find_landmark<'a>(
+        &self,
+        landmarks: &'a [niri_config::Landmark],
+    ) -> Option<&'a niri_config::Landmark> {
+        let _ = landmarks;
+        None
+    }
+
+    /// Sets the desaturation factor for workspace transition effects.
+    /// `0.0` = normal, `1.0` = fully grayscale.
+    fn set_workspace_desaturate(&self, _amount: f32) {}
+
+    fn gesture_opacity_multiplier(&self) -> f32 {
+        1.0
+    }
+
+    fn gesture_translate_y(&self, _window_height: f64) -> f64 {
+        0.0
+    }
+
+    fn gesture_translate_x(&self, _window_width: f64) -> f64 {
+        0.0
+    }
+
     /// Visual size of the element.
     ///
     /// This is what the user would consider the size, i.e. excluding CSD shadows and whatnot.
@@ -393,6 +417,8 @@ pub struct Options {
     pub gestures: niri_config::Gestures,
     pub overview: niri_config::Overview,
     pub blur: niri_config::Blur,
+    pub landmarks: Vec<niri_config::Landmark>,
+    pub magnet: niri_config::Magnet,
     pub animation_presets: Vec<niri_config::AnimationPreset>,
     // Debug flags.
     pub disable_resize_throttling: bool,
@@ -446,6 +472,8 @@ struct InteractiveMoveData<W: LayoutElement> {
     /// config overrides for the workspace where the move originated from. As soon as the window
     /// moves over some different workspace though, this override will reset.
     pub(self) workspace_config: Option<(WorkspaceId, niri_config::LayoutPart)>,
+    pub(self) tracker_x: SwipeTracker,
+    pub(self) tracker_y: SwipeTracker,
 }
 
 #[derive(Debug)]
@@ -600,12 +628,65 @@ impl<W: LayoutElement> InteractiveMoveData<W> {
             window_size.w * self.pointer_ratio_within_window.0,
             window_size.h * self.pointer_ratio_within_window.1,
         ));
-        let pos = self.pointer_pos_within_output
+        let mut pos = self.pointer_pos_within_output
             - (pointer_offset_within_window + self.tile.window_loc() - self.tile.render_offset())
                 .upscale(zoom);
+
+        // Window Magnet (Soft Snapping) physics
+        if self.tile.options.magnet.enable {
+            let magnet = &self.tile.options.magnet;
+            let radius = magnet.radius.max(0.1);
+            let strength = magnet.strength.clamp(0.0, 1.0);
+
+            let out_size = output_size(&self.output);
+            let out_w = out_size.w as f64;
+            let out_h = out_size.h as f64;
+
+            // Snap Left / Right
+            let left_dist = pos.x;
+            let right_dist = (pos.x + window_size.w) - out_w;
+            if left_dist.abs() < radius {
+                pos.x -= magnet_delta(left_dist, radius, strength, magnet);
+            } else if right_dist.abs() < radius {
+                pos.x -= magnet_delta(right_dist, radius, strength, magnet);
+            }
+
+            // Snap Top / Bottom
+            let top_dist = pos.y;
+            let bottom_dist = (pos.y + window_size.h) - out_h;
+            if top_dist.abs() < radius {
+                pos.y -= magnet_delta(top_dist, radius, strength, magnet);
+            } else if bottom_dist.abs() < radius {
+                pos.y -= magnet_delta(bottom_dist, radius, strength, magnet);
+            }
+        }
+
         // Round to physical pixels.
         pos.to_physical_precise_round(scale).to_logical(scale)
     }
+}
+
+fn magnet_delta(distance: f64, radius: f64, strength: f64, magnet: &niri_config::Magnet) -> f64 {
+    let proximity = 1.0 - (distance.abs() / radius).clamp(0.0, 1.0);
+    let mut eased = match magnet.animation.as_str() {
+        "soft-snap" => proximity * proximity,
+        "spring" => {
+            // Spring-like damping: overshoot then settle.
+            let t = proximity;
+            let spring = 1.0 - (-5.0 * t).exp() * (1.0 + 3.0 * t);
+            spring * proximity
+        }
+        _ => proximity,
+    };
+
+    // Haptic visual: when the window is very close to the edge, snap it
+    // firmly into place (simulating a magnetic "click").
+    if magnet.haptic_visual && proximity >= 0.75 {
+        let snap_factor = 1.0 + (proximity - 0.75) * 3.0; // up to 1.75x multiplier
+        eased = (eased * snap_factor).min(1.0);
+    }
+
+    distance * eased * strength
 }
 
 impl ActivateWindow {
@@ -656,7 +737,7 @@ fn resolve_animation_preset(
         return Some(preset.animation.clone());
     }
     // Fall back to built-in hardcoded presets
-    use niri_config::animations::{Kind, EasingParams, SpringParams, Curve};
+    use niri_config::animations::{Curve, EasingParams, Kind, SpringParams};
     match name {
         "liquid-pop" => Some(niri_config::animations::Animation {
             off: false,
@@ -868,10 +949,7 @@ fn resolve_animation_preset(
                 if let Some(duration_ms) = duration_ms {
                     return Some(niri_config::animations::Animation {
                         off: false,
-                        kind: Kind::Easing(EasingParams {
-                            duration_ms,
-                            curve,
-                        }),
+                        kind: Kind::Easing(EasingParams { duration_ms, curve }),
                     });
                 }
             }
@@ -880,31 +958,32 @@ fn resolve_animation_preset(
     }
 }
 
-
 impl Options {
     fn from_config(config: &Config) -> Self {
         let mut animations = config.animations.clone();
-        if let Some(profile_name) = &config.active_animation_profile {
-            if let Some(profile) = config.animation_profiles.iter().find(|p| &p.name == profile_name) {
-                if let Some(preset_name) = &profile.window_open {
-                    if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets) {
-                        animations.window_open.anim = anim;
-                    }
+        if let Some(profile) = config.resolved_animation_profile() {
+            if let Some(preset_name) = &profile.window_open {
+                if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets)
+                {
+                    animations.window_open.anim = anim;
                 }
-                if let Some(preset_name) = &profile.window_close {
-                    if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets) {
-                        animations.window_close.anim = anim;
-                    }
+            }
+            if let Some(preset_name) = &profile.window_close {
+                if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets)
+                {
+                    animations.window_close.anim = anim;
                 }
-                if let Some(preset_name) = &profile.workspace {
-                    if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets) {
-                        animations.workspace_switch.0 = anim;
-                    }
+            }
+            if let Some(preset_name) = &profile.workspace {
+                if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets)
+                {
+                    animations.workspace_switch.0 = anim;
                 }
-                if let Some(preset_name) = &profile.overview_open {
-                    if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets) {
-                        animations.overview_open_close.0 = anim;
-                    }
+            }
+            if let Some(preset_name) = &profile.overview_open {
+                if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets)
+                {
+                    animations.overview_open_close.0 = anim;
                 }
             }
         }
@@ -912,9 +991,11 @@ impl Options {
         Self {
             layout: config.layout.clone(),
             animations,
-            gestures: config.gestures,
+            gestures: config.gestures.clone(),
             overview: config.overview,
             blur: config.blur,
+            landmarks: config.landmarks.clone(),
+            magnet: config.magnet.clone(),
             animation_presets: config.animation_presets.clone(),
             disable_resize_throttling: config.debug.disable_resize_throttling,
             disable_transactions: config.debug.disable_transactions,
@@ -1566,7 +1647,10 @@ impl<W: LayoutElement> Layout<W> {
         None
     }
 
-    pub fn ensure_named_workspace_on_active_monitor(&mut self, workspace_name: String) -> Option<usize> {
+    pub fn ensure_named_workspace_on_active_monitor(
+        &mut self,
+        workspace_name: String,
+    ) -> Option<usize> {
         let MonitorSet::Normal {
             monitors,
             active_monitor_idx,
@@ -1581,6 +1665,57 @@ impl<W: LayoutElement> Layout<W> {
             return Some(idx);
         }
 
+        let mut idx = monitor.workspaces.len().checked_sub(1)?;
+        if monitor.workspaces[idx].has_windows_or_name() {
+            monitor.add_workspace_bottom();
+            idx = monitor.workspaces.len().checked_sub(1)?;
+        }
+
+        monitor.workspaces[idx].name.replace(workspace_name);
+
+        if idx == monitor.workspaces.len() - 1 {
+            monitor.add_workspace_bottom();
+        }
+        if monitor.options.layout.empty_workspace_above_first && idx == 0 {
+            monitor.add_workspace_top();
+            idx += 1;
+        }
+
+        Some(idx)
+    }
+
+    /// Ensures a named workspace exists on a specific monitor (by output name).
+    ///
+    /// If the output name is `None` or the output is not found, falls back to the active monitor.
+    pub fn ensure_named_workspace_on_monitor(
+        &mut self,
+        workspace_name: String,
+        output_name: Option<&str>,
+    ) -> Option<usize> {
+        // Try to find the named workspace anywhere first.
+        if let Some((idx, _)) = self.find_workspace_by_name(&workspace_name) {
+            return Some(idx);
+        }
+
+        let MonitorSet::Normal {
+            monitors,
+            active_monitor_idx,
+            ..
+        } = &mut self.monitor_set
+        else {
+            return None;
+        };
+
+        // Find the target monitor by output name.
+        let target_monitor_idx = output_name
+            .and_then(|name| {
+                monitors
+                    .iter()
+                    .position(|m| m.output.name() == name)
+            })
+            .unwrap_or(*active_monitor_idx);
+
+        let monitor = &mut monitors[target_monitor_idx];
         let mut idx = monitor.workspaces.len().checked_sub(1)?;
         if monitor.workspaces[idx].has_windows_or_name() {
             monitor.add_workspace_bottom();
@@ -4305,6 +4440,8 @@ impl<W: LayoutElement> Layout<W> {
                     pointer_ratio_within_window,
                     output_config,
                     workspace_config,
+                    tracker_x: SwipeTracker::new(),
+                    tracker_y: SwipeTracker::new(),
                 };
 
                 if let Some((tile_pos, zoom)) = tile_pos {
@@ -4364,6 +4501,12 @@ impl<W: LayoutElement> Layout<W> {
                         .adjusted_for_scale(scale);
                     move_.tile.update_config(view_size, scale, Rc::new(options));
                 }
+
+                let dx = pointer_pos_within_output.x - move_.pointer_pos_within_output.x;
+                let dy = pointer_pos_within_output.y - move_.pointer_pos_within_output.y;
+                let now = self.clock.now_unadjusted();
+                move_.tracker_x.push(dx, now);
+                move_.tracker_y.push(dy, now);
 
                 move_.pointer_pos_within_output = pointer_pos_within_output;
 
@@ -4616,7 +4759,11 @@ impl<W: LayoutElement> Layout<W> {
                     .unwrap();
                 let new_tile_render_loc = ws_geo.loc + tile_offset.upscale(zoom);
 
-                tile.animate_move_from((tile_render_loc - new_tile_render_loc).downscale(zoom));
+                let velocity = Point::new(move_.tracker_x.velocity(), move_.tracker_y.velocity());
+                tile.animate_move_from_with_velocity(
+                    (tile_render_loc - new_tile_render_loc).downscale(zoom),
+                    velocity,
+                );
             }
             MonitorSet::NoOutputs { workspaces, .. } => {
                 if workspaces.is_empty() {
@@ -5127,7 +5274,7 @@ impl<W: LayoutElement> Layout<W> {
 
         move_
             .tile
-            .render(ctx, pos_in_backdrop, xray_pos, true, &mut |elem| {
+            .render(ctx, pos_in_backdrop, xray_pos, true, 0.0, &mut |elem| {
                 push(RescaleRenderElement::from_element(
                     elem,
                     pos_in_backdrop.to_physical_precise_round(scale),

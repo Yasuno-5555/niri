@@ -934,22 +934,22 @@ where
 pub struct AnimationProfile {
     #[knuffel(argument)]
     pub name: String,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub window_open: Option<String>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub window_close: Option<String>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub layer_open: Option<String>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub layer_close: Option<String>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub overview_open: Option<String>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub workspace: Option<String>,
 }

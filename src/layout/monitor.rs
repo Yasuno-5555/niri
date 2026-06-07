@@ -1680,6 +1680,14 @@ impl<W: LayoutElement> Monitor<W> {
         // Ceil the height in physical pixels.
         let height = (self.view_size.h * scale).ceil() as i32;
 
+        let switch_progress = if let Some(switch) = &self.workspace_switch {
+            let current = switch.current_idx();
+            let target = switch.target_idx();
+            (current - target).abs().clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+
         // Crop the elements to prevent them overflowing, currently visible during a workspace
         // switch.
         //
@@ -1736,7 +1744,7 @@ impl<W: LayoutElement> Monitor<W> {
 
             let xray_pos = XrayPos::new(geo.loc, zoom);
 
-            ws.render_floating(ctx.r(), xray_pos, focus_ring, push!());
+            ws.render_floating(ctx.r(), xray_pos, focus_ring, switch_progress, push!());
 
             if let Some(loc) = insert_hint_render_loc {
                 if loc.workspace == InsertWorkspace::Existing(ws.id()) {
@@ -1745,7 +1753,7 @@ impl<W: LayoutElement> Monitor<W> {
                 }
             }
 
-            ws.render_scrolling(ctx.r(), xray_pos, focus_ring, push!());
+            ws.render_scrolling(ctx.r(), xray_pos, focus_ring, switch_progress, push!());
         }
     }
 

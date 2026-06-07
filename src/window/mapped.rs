@@ -63,6 +63,12 @@ pub struct Mapped {
     /// Up-to-date rules.
     rules: ResolvedWindowRules,
 
+    /// Temporary progress-driven overrides applied during gesture-edge interactions.
+    gesture_progress_effect: Option<GestureProgressEffect>,
+
+    /// Desaturation factor during workspace transitions (0.0 = no effect, 1.0 = fully desaturated).
+    workspace_desaturate: Cell<f32>,
+
     /// Whether the window rules need to be recomputed.
     ///
     /// This is not used in all cases; for example, app ID and title changes recompute the rules
@@ -195,6 +201,22 @@ pub struct Mapped {
     focus_timestamp: Option<Duration>,
 }
 
+#[derive(Debug, Clone)]
+struct GestureProgressEffect {
+    progress: f64,
+    map: niri_config::GestureProgressMap,
+    /// When set, the progress is animating towards this target.
+    animation_target: Option<GestureAnimationTarget>,
+}
+
+#[derive(Debug, Clone)]
+struct GestureAnimationTarget {
+    from: f64,
+    to: f64,
+    start: std::time::Instant,
+    duration: std::time::Duration,
+}
+
 niri_render_elements! {
     WindowCastRenderElements<R> => {
         Layout = LayoutElementRenderElement<R>,
@@ -281,6 +303,8 @@ impl Mapped {
             credentials,
             pre_commit_hook: hook,
             rules,
+            gesture_progress_effect: None,
+            workspace_desaturate: Cell::new(0.0),
             need_to_recompute_rules: false,
             needs_configure: false,
             needs_frame_callback: false,
@@ -375,21 +399,180 @@ impl Mapped {
         if let Some(noise) = mat.noise {
             self.rules.background_effect.noise = Some(noise.0);
         }
-        if mat.refraction.is_some() || mat.specular.is_some() {
+        if mat.refraction.is_some() || mat.specular.is_some() || mat.dispersion.is_some() {
             self.rules.background_effect.liquid = Some(true);
         }
         if let Some(refraction) = mat.refraction {
-            self.rules.background_effect.refraction = Some(refraction.strength.map(|s| s.0).unwrap_or(0.0));
+            self.rules.background_effect.refraction =
+                Some(refraction.strength.map(|s| s.0).unwrap_or(0.0));
         }
         if let Some(spec) = mat.specular {
             self.rules.background_effect.specular = Some(spec.strength.map(|s| s.0).unwrap_or(0.0));
         }
         if let Some(edge) = &mat.edge_highlight {
-            self.rules.background_effect.edge_highlight = Some(edge.width.map(|w| w.0).unwrap_or(0.0));
+            self.rules.background_effect.edge_highlight =
+                Some(edge.width.map(|w| w.0).unwrap_or(0.0));
         }
         if let Some(bloom) = mat.bloom {
             self.rules.background_effect.bloom = Some(bloom.0);
         }
+        if let Some(dispersion) = mat.dispersion {
+            if let Some(strength) = dispersion.strength {
+                self.rules.background_effect.chromatic_aberration = Some(strength.0);
+            }
+        }
+    }
+
+    pub fn set_gesture_progress(&mut self, progress: f64, map: &niri_config::GestureProgressMap) {
+        // Cancel any pending animation — live tracking takes priority.
+        self.gesture_progress_effect = Some(GestureProgressEffect {
+            progress,
+            map: map.clone(),
+            animation_target: None,
+        });
+    }
+
+    /// Animates the gesture progress toward a target value, then clears when done.
+    pub fn animate_gesture_progress(&mut self, target: f64) {
+        let Some(effect) = &self.gesture_progress_effect else {
+            return;
+        };
+        if effect.animation_target.is_some() {
+            return; // Already animating.
+        }
+        let Some(effect_mut) = &mut self.gesture_progress_effect else {
+            return;
+        };
+        effect_mut.animation_target = Some(GestureAnimationTarget {
+            from: effect_mut.progress,
+            to: target,
+            start: std::time::Instant::now(),
+            duration: std::time::Duration::from_millis(180),
+        });
+    }
+
+    pub fn clear_gesture_progress(&mut self) {
+        self.gesture_progress_effect = None;
+    }
+
+    /// Advances the gesture progress animation. Returns true if animation is ongoing.
+    pub fn advance_gesture_progress(&mut self) -> bool {
+        // Extract animation state without borrowing self mutably.
+        let anim_data = self.gesture_progress_effect.as_ref().and_then(|e| {
+            e.animation_target.as_ref().map(|a| {
+                (
+                    a.from,
+                    a.to,
+                    a.start,
+                    a.duration,
+                )
+            })
+        });
+
+        let (from, to, start, duration) = match anim_data {
+            Some(d) => d,
+            None => return false,
+        };
+
+        let elapsed = start.elapsed().as_secs_f64();
+        let t = (elapsed / duration.as_secs_f64()).clamp(0.0, 1.0);
+        let eased = 1.0 - (1.0 - t).powi(3);
+        let new_progress = from + (to - from) * eased;
+
+        let Some(effect) = &mut self.gesture_progress_effect else {
+            return false;
+        };
+
+        if t >= 1.0 {
+            if to <= 0.0 {
+                self.gesture_progress_effect = None;
+                return false;
+            }
+            effect.progress = to;
+            effect.animation_target = None;
+        } else {
+            effect.progress = new_progress;
+        }
+
+        true
+    }
+
+    pub fn find_landmark<'a>(
+        &self,
+        landmarks: &'a [niri_config::Landmark],
+    ) -> Option<&'a niri_config::Landmark> {
+        let toplevel = self.window.toplevel()?;
+        super::with_toplevel_role(toplevel, |role| {
+            if role.server_pending.is_none() {
+                return None;
+            }
+
+            for landmark in landmarks {
+                let matches = |m: &niri_config::Match| {
+                    super::window_matches(super::WindowRef::Mapped(self), role, m)
+                };
+
+                if landmark.matches.iter().any(matches) {
+                    return Some(landmark);
+                }
+            }
+            None
+        })
+    }
+
+    pub fn matches_gesture_progress_target(
+        &self,
+        target: &str,
+        landmarks: &[niri_config::Landmark],
+    ) -> bool {
+        if let Some(name) = target.strip_prefix("scratch-column:") {
+            let scratch_workspace = format!("__scratch_{}", name.trim());
+            return self.rules.open_on_workspace.as_deref() == Some(scratch_workspace.as_str());
+        }
+
+        if let Some(name) = target.strip_prefix("workspace:") {
+            return self
+                .rules
+                .open_on_workspace
+                .as_deref()
+                .is_some_and(|workspace| workspace.eq_ignore_ascii_case(name.trim()));
+        }
+
+        if let Some(name) = target.strip_prefix("landmark:") {
+            return self
+                .find_landmark(landmarks)
+                .is_some_and(|landmark| landmark.name.eq_ignore_ascii_case(name.trim()));
+        }
+
+        let toplevel = match self.window.toplevel() {
+            Some(toplevel) => toplevel,
+            None => return false,
+        };
+
+        super::with_toplevel_role(toplevel, |role| {
+            if let Some(app_id) = target.strip_prefix("app-id:") {
+                return role
+                    .app_id
+                    .as_deref()
+                    .is_some_and(|value| value.eq_ignore_ascii_case(app_id.trim()));
+            }
+
+            if let Some(title) = target.strip_prefix("title:") {
+                return role
+                    .title
+                    .as_deref()
+                    .is_some_and(|value| value.eq_ignore_ascii_case(title.trim()));
+            }
+
+            self.rules
+                .open_on_workspace
+                .as_deref()
+                .is_some_and(|workspace| workspace.eq_ignore_ascii_case(target))
+        })
+    }
+
+    pub fn window_rules(&self) -> &ResolvedWindowRules {
+        &self.rules
     }
 
     pub fn set_needs_configure(&mut self) {
@@ -422,6 +605,84 @@ impl Mapped {
 
     pub fn is_window_cast_target(&self) -> bool {
         self.is_window_cast_target
+    }
+
+    pub fn gesture_opacity_multiplier(&self) -> f32 {
+        self.gesture_progress_effect
+            .as_ref()
+            .and_then(|effect| interpolate_value(effect.progress, effect.map.opacity.as_deref()))
+            .unwrap_or(1.0) as f32
+    }
+
+    pub fn gesture_translate_y(&self, window_height: f64) -> f64 {
+        self.gesture_progress_effect
+            .as_ref()
+            .and_then(|effect| {
+                interpolate_dimension(
+                    effect.progress,
+                    effect.map.translate_y.as_deref(),
+                    window_height,
+                )
+            })
+            .unwrap_or(0.0)
+    }
+
+    pub fn gesture_translate_x(&self, window_width: f64) -> f64 {
+        self.gesture_progress_effect
+            .as_ref()
+            .and_then(|effect| {
+                interpolate_dimension(
+                    effect.progress,
+                    effect.map.translate_x.as_deref(),
+                    window_width,
+                )
+            })
+            .unwrap_or(0.0)
+    }
+
+    /// Sets the desaturation factor during workspace transitions.
+    /// `0.0` = normal colors, `1.0` = fully grayscale.
+    pub fn set_workspace_desaturate(&self, amount: f32) {
+        self.workspace_desaturate.set(amount);
+    }
+
+    pub fn effective_background_effect(&self) -> niri_config::BackgroundEffect {
+        let mut effect = self.rules.background_effect;
+
+        // Apply workspace transition desaturation.
+        let ws_desat = self.workspace_desaturate.get();
+        if ws_desat > 0.0 {
+            let base_sat = effect.saturation.unwrap_or(1.0) as f32;
+            let desaturated = base_sat * (1.0 - ws_desat * 0.7);
+            effect.saturation = Some(desaturated as f64);
+        }
+
+        let Some(gesture) = &self.gesture_progress_effect else {
+            return effect;
+        };
+
+        if let Some(value) = interpolate_value(gesture.progress, gesture.map.blur.as_deref()) {
+            if value > 0.0 {
+                effect.blur = Some(true);
+            }
+        }
+        if let Some(value) = interpolate_value(gesture.progress, gesture.map.refraction.as_deref())
+        {
+            effect.liquid = Some(true);
+            effect.refraction = Some(value);
+        }
+        if let Some(value) = interpolate_value(gesture.progress, gesture.map.specular.as_deref()) {
+            effect.liquid = Some(true);
+            effect.specular = Some(value);
+        }
+        if let Some(value) =
+            interpolate_value(gesture.progress, gesture.map.chromatic_aberration.as_deref())
+        {
+            effect.liquid = Some(true);
+            effect.chromatic_aberration = Some(value);
+        }
+
+        effect
     }
 
     pub fn toggle_ignore_opacity_window_rule(&mut self) {
@@ -575,6 +836,7 @@ impl Mapped {
                         radius,
                         scale.x as f32,
                         1.,
+                        0.,
                     )
                     .with_location(geo.loc)
                     .into();
@@ -669,6 +931,29 @@ impl LayoutElement for Mapped {
 
     fn update_config(&mut self, blur_config: niri_config::Blur) {
         self.blur_config = blur_config;
+    }
+
+    fn find_landmark<'a>(
+        &self,
+        landmarks: &'a [niri_config::Landmark],
+    ) -> Option<&'a niri_config::Landmark> {
+        self.find_landmark(landmarks)
+    }
+
+    fn set_workspace_desaturate(&self, amount: f32) {
+        Mapped::set_workspace_desaturate(self, amount);
+    }
+
+    fn gesture_opacity_multiplier(&self) -> f32 {
+        Mapped::gesture_opacity_multiplier(self)
+    }
+
+    fn gesture_translate_y(&self, window_height: f64) -> f64 {
+        Mapped::gesture_translate_y(self, window_height)
+    }
+
+    fn gesture_translate_x(&self, window_width: f64) -> f64 {
+        Mapped::gesture_translate_x(self, window_width)
     }
 
     fn size(&self) -> Size<i32, Logical> {
@@ -801,7 +1086,7 @@ impl LayoutElement for Mapped {
             surface_anim_scale,
             self.blur_config,
             radius,
-            self.rules.background_effect,
+            self.effective_background_effect(),
             should_block_out,
             xray_pos,
             push,
@@ -1469,4 +1754,34 @@ impl LayoutElement for Mapped {
             }
         });
     }
+}
+
+fn interpolate_value(progress: f64, spec: Option<&str>) -> Option<f64> {
+    let (from, to) = parse_numeric_range(spec?)?;
+    Some(from + (to - from) * progress.clamp(0.0, 1.0))
+}
+
+fn interpolate_dimension(progress: f64, spec: Option<&str>, extent: f64) -> Option<f64> {
+    let spec = spec?;
+    let (from_raw, to_raw) = split_range(spec)?;
+    let from = parse_dimension(from_raw.trim(), extent)?;
+    let to = parse_dimension(to_raw.trim(), extent)?;
+    Some(from + (to - from) * progress.clamp(0.0, 1.0))
+}
+
+fn parse_numeric_range(spec: &str) -> Option<(f64, f64)> {
+    let (from, to) = split_range(spec)?;
+    Some((from.trim().parse().ok()?, to.trim().parse().ok()?))
+}
+
+fn split_range(spec: &str) -> Option<(&str, &str)> {
+    spec.split_once("->")
+}
+
+fn parse_dimension(spec: &str, extent: f64) -> Option<f64> {
+    if let Some(percent) = spec.strip_suffix('%') {
+        return Some(percent.trim().parse::<f64>().ok()? / 100.0 * extent);
+    }
+
+    spec.parse().ok()
 }

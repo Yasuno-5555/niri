@@ -23,6 +23,8 @@ uniform vec2 geo_size;
 uniform vec4 outer_radius;
 uniform float border_width;
 
+uniform float sweep_progress;
+
 vec4 premul_rect(vec4 color) {
     color.rgb *= color.a;
     return color;
@@ -214,6 +216,20 @@ void main() {
     vec3 coords_geo = input_to_geo * vec3(niri_v_coords, 1.0);
     vec4 color = gradient_color(coords_geo.xy);
     color = color * niri_rounding_alpha(coords_geo.xy, geo_size, outer_radius);
+
+    if (sweep_progress > 0.0 && sweep_progress < 1.0) {
+        vec2 center = geo_size * 0.5;
+        vec2 dir = coords_geo.xy - center;
+        float angle = atan(dir.y, dir.x);
+        float norm_angle = (angle + 3.14159265) / 6.2831853;
+        float dist = abs(norm_angle - sweep_progress);
+        dist = min(dist, 1.0 - dist);
+        float glow_width = 0.15;
+        float glow = smoothstep(glow_width, 0.0, dist);
+        float sweep_intensity = sin(sweep_progress * 3.14159265);
+        vec4 glow_color = vec4(1.0, 1.0, 1.0, 1.0) * color.a;
+        color = mix(color, glow_color, glow * 0.8 * sweep_intensity);
+    }
 
     if (border_width > 0.0) {
         coords_geo -= vec3(border_width);

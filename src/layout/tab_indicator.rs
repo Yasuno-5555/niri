@@ -265,6 +265,7 @@ impl TabIndicator {
                 radius,
                 scale as f32,
                 1.,
+                0.,
             );
         }
     }

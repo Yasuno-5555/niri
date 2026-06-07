@@ -119,6 +119,30 @@ pub enum Request {
     OverviewState,
     /// Request information about screencasts.
     Casts,
+    /// Execute a Hyprland-compatible dispatch command.
+    ///
+    /// The command string follows Hyprland dispatch syntax, e.g.:
+    /// `exec firefox`, `movefocus left`, `togglespecialworkspace terminal`.
+    /// It is parsed server-side into the corresponding niri action.
+    DispatchDispatcher {
+        /// The dispatch command and its arguments.
+        command: Vec<String>,
+    },
+    /// Request the list of supported capabilities.
+    Capabilities,
+    /// Request the full action registry.
+    Actions,
+    /// Request recent state bus events.
+    Events,
+    /// Inspect the focused window/surface (material, rules, animations).
+    Inspect,
+    /// Trace which rules matched for the focused window.
+    TraceRules,
+    /// Manage scripts (list, reload, errors).
+    Scripts {
+        #[serde(default)]
+        action: ScriptsAction,
+    },
 }
 
 /// Reply from niri to client.
@@ -165,6 +189,18 @@ pub enum Response {
     OverviewState(Overview),
     /// Information about screencasts.
     Casts(Vec<Cast>),
+    /// Supported capabilities of the compositor.
+    Capabilities(Vec<String>),
+    /// Action registry entries.
+    Actions(Vec<ActionDescriptor>),
+    /// Recent StateBus events (for debugging).
+    Events(Vec<String>),
+    /// Focused window inspection data.
+    Inspect(Vec<String>),
+    /// Rule trace output.
+    TraceRules(Vec<String>),
+    /// Script engine status.
+    Scripts(Vec<String>),
 }
 
 /// Overview information.
@@ -961,6 +997,10 @@ pub enum Action {
         #[cfg_attr(feature = "clap", arg())]
         material: String,
     },
+    /// Toggle the action palette.
+    ToggleActionPalette,
+    /// Toggle safe mode (emergency escape hatch).
+    ToggleSafeMode,
 }
 
 /// Change in window or column size.
@@ -2115,6 +2155,55 @@ impl OutputAction {
             _ => Ok(()),
         }
     }
+}
+
+/// An action descriptor from the compositor's action registry.
+///
+/// Returned by [`Request::Actions`].
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct ActionDescriptor {
+    /// Unique action identifier (e.g., "close-window").
+    pub id: String,
+    /// Human-readable label (e.g., "Close the focused window").
+    pub label: String,
+    /// Category name (e.g., "Window", "Workspace", "Material").
+    pub category: String,
+    /// Default keybinding suggestion, if any.
+    pub default_bind: Option<String>,
+    /// Arguments expected by this action.
+    pub args: Vec<ActionArgDescriptor>,
+    /// Where this action originated ("niri" or "niri-liquid").
+    pub source: String,
+    /// Required capability (if any) for this action to be available.
+    pub capability: Option<String>,
+}
+
+/// Script management action.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub enum ScriptsAction {
+    /// List loaded scripts.
+    #[default]
+    List,
+    /// Reload all scripts from disk.
+    Reload,
+    /// Show last errors.
+    Errors,
+}
+
+/// Argument specification for an action.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct ActionArgDescriptor {
+    /// Argument name.
+    pub name: String,
+    /// Human-readable description.
+    pub description: String,
+    /// Whether the argument is required.
+    pub required: bool,
+    /// Example values.
+    pub examples: Vec<String>,
 }
 
 #[cfg(test)]

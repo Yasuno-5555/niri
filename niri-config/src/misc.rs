@@ -198,3 +198,259 @@ impl MergeWith<XwaylandSatellitePart> for XwaylandSatellite {
         merge_clone!((self, part), path);
     }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ActionPalette {
+    pub enable: bool,
+    pub bind: Option<String>,
+    pub material: Option<String>,
+    pub fuzzy_search: bool,
+    pub show_keybinds: bool,
+    pub show_current_state: bool,
+}
+
+impl Default for ActionPalette {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            bind: Some("Mod+P".to_string()),
+            material: Some("dashboard-glass".to_string()),
+            fuzzy_search: true,
+            show_keybinds: true,
+            show_current_state: true,
+        }
+    }
+}
+
+#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
+pub struct ActionPalettePart {
+    #[knuffel(child)]
+    pub enable: Option<Flag>,
+    #[knuffel(child, unwrap(argument))]
+    pub bind: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub material: Option<String>,
+    #[knuffel(child)]
+    pub fuzzy_search: Option<Flag>,
+    #[knuffel(child)]
+    pub show_keybinds: Option<Flag>,
+    #[knuffel(child)]
+    pub show_current_state: Option<Flag>,
+}
+
+impl MergeWith<ActionPalettePart> for ActionPalette {
+    fn merge_with(&mut self, part: &ActionPalettePart) {
+        merge!(
+            (self, part),
+            enable,
+            fuzzy_search,
+            show_keybinds,
+            show_current_state
+        );
+        merge_clone_opt!((self, part), bind, material);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModeHud {
+    pub enable: bool,
+    pub position: String,
+    pub duration_ms: u64,
+    pub material: String,
+    pub show: ModeHudShow,
+}
+
+impl Default for ModeHud {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            position: "top-center".to_string(),
+            duration_ms: 900,
+            material: "hud-glass".to_string(),
+            show: ModeHudShow::default(),
+        }
+    }
+}
+
+#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
+pub struct ModeHudPart {
+    #[knuffel(child)]
+    pub enable: Option<Flag>,
+    #[knuffel(child, unwrap(argument))]
+    pub position: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub duration_ms: Option<u64>,
+    #[knuffel(child, unwrap(argument))]
+    pub material: Option<String>,
+    #[knuffel(child)]
+    pub show: Option<ModeHudShowPart>,
+}
+
+impl MergeWith<ModeHudPart> for ModeHud {
+    fn merge_with(&mut self, part: &ModeHudPart) {
+        merge!((self, part), enable);
+        merge_clone!((self, part), position, duration_ms, material);
+        if let Some(show_part) = &part.show {
+            self.show.merge_with(show_part);
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModeHudShow {
+    pub animation_profile: bool,
+    pub material: bool,
+    pub performance_profile: bool,
+    pub scratch_state: bool,
+}
+
+impl Default for ModeHudShow {
+    fn default() -> Self {
+        Self {
+            animation_profile: true,
+            material: true,
+            performance_profile: true,
+            scratch_state: true,
+        }
+    }
+}
+
+#[derive(knuffel::Decode, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct ModeHudShowPart {
+    #[knuffel(child)]
+    pub animation_profile: Option<Flag>,
+    #[knuffel(child)]
+    pub material: Option<Flag>,
+    #[knuffel(child)]
+    pub performance_profile: Option<Flag>,
+    #[knuffel(child)]
+    pub scratch_state: Option<Flag>,
+}
+
+impl MergeWith<ModeHudShowPart> for ModeHudShow {
+    fn merge_with(&mut self, part: &ModeHudShowPart) {
+        merge!(
+            (self, part),
+            animation_profile,
+            material,
+            performance_profile,
+            scratch_state
+        );
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Magnet {
+    pub enable: bool,
+    pub strength: f64,
+    pub radius: f64,
+    pub animation: String,
+    pub haptic_visual: bool,
+}
+
+impl Default for Magnet {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            strength: 0.65,
+            radius: 32.0,
+            animation: "soft-snap".to_string(),
+            haptic_visual: false,
+        }
+    }
+}
+
+#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
+pub struct MagnetPart {
+    #[knuffel(child)]
+    pub enable: Option<Flag>,
+    #[knuffel(child, unwrap(argument))]
+    pub strength: Option<FloatOrInt<0, 100>>,
+    #[knuffel(child, unwrap(argument))]
+    pub radius: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub animation: Option<String>,
+    #[knuffel(child)]
+    pub haptic_visual: Option<Flag>,
+}
+
+impl MergeWith<MagnetPart> for Magnet {
+    fn merge_with(&mut self, part: &MagnetPart) {
+        merge!((self, part), enable, haptic_visual);
+        merge_clone!((self, part), animation);
+        if let Some(s) = part.strength {
+            self.strength = s.0;
+        }
+        if let Some(r) = part.radius {
+            self.radius = r.0;
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AdaptiveAnimationProfile {
+    pub enable: bool,
+    pub active: Option<String>,
+    pub idle: Option<String>,
+    pub on_battery: Option<String>,
+    pub low_battery: Option<String>,
+    pub power_saver: Option<String>,
+    pub balanced: Option<String>,
+    pub performance: Option<String>,
+    pub settle_ms: u64,
+}
+
+impl Default for AdaptiveAnimationProfile {
+    fn default() -> Self {
+        Self {
+            enable: false,
+            active: None,
+            idle: None,
+            on_battery: None,
+            low_battery: None,
+            power_saver: None,
+            balanced: None,
+            performance: None,
+            settle_ms: 900,
+        }
+    }
+}
+
+#[derive(knuffel::Decode, Debug, Default, Clone, PartialEq)]
+pub struct AdaptiveAnimationProfilePart {
+    #[knuffel(child)]
+    pub enable: Option<Flag>,
+    #[knuffel(child, unwrap(argument))]
+    pub active: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub idle: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub on_battery: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub low_battery: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub power_saver: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub balanced: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub performance: Option<String>,
+    #[knuffel(child, unwrap(argument))]
+    pub settle_ms: Option<u64>,
+}
+
+impl MergeWith<AdaptiveAnimationProfilePart> for AdaptiveAnimationProfile {
+    fn merge_with(&mut self, part: &AdaptiveAnimationProfilePart) {
+        merge!((self, part), enable);
+        merge_clone_opt!(
+            (self, part),
+            active,
+            idle,
+            on_battery,
+            low_battery,
+            power_saver,
+            balanced,
+            performance
+        );
+        merge_clone!((self, part), settle_ms);
+    }
+}

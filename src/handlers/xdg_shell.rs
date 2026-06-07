@@ -1388,7 +1388,12 @@ impl State {
             .layout
             .find_window_and_output_mut(toplevel.wl_surface())
         {
-            if mapped.recompute_window_rules(window_rules, self.niri.is_at_startup, presets, materials) {
+            if mapped.recompute_window_rules(
+                window_rules,
+                self.niri.is_at_startup,
+                presets,
+                materials,
+            ) {
                 drop(config);
                 let output = output.cloned();
                 let window = mapped.window.clone();

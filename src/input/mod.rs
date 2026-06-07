@@ -494,6 +494,72 @@ impl State {
                     }
                 }
 
+                if this.niri.action_palette.is_open() && pressed {
+                    let keysym_to_char = |sym: Keysym| -> Option<char> {
+                        let name = smithay::input::keyboard::xkb::keysym_get_name(sym);
+                        if name.len() == 1 {
+                            name.chars().next()
+                        } else {
+                            match name.as_str() {
+                                "space" => Some(' '),
+                                "minus" => Some('-'),
+                                "underscore" => Some('_'),
+                                "period" => Some('.'),
+                                "comma" => Some(','),
+                                "slash" => Some('/'),
+                                "colon" => Some(':'),
+                                "semicolon" => Some(';'),
+                                "equal" => Some('='),
+                                "plus" => Some('+'),
+                                "bracketleft" => Some('['),
+                                "bracketright" => Some(']'),
+                                "braceleft" => Some('{'),
+                                "braceright" => Some('}'),
+                                "backslash" => Some('\\'),
+                                "bar" => Some('|'),
+                                "apostrophe" => Some('\''),
+                                "quotedbl" => Some('"'),
+                                "grave" => Some('`'),
+                                "asciitilde" => Some('~'),
+                                "at" => Some('@'),
+                                "numbersign" => Some('#'),
+                                "dollar" => Some('$'),
+                                "percent" => Some('%'),
+                                "asciicircum" => Some('^'),
+                                "ampersand" => Some('&'),
+                                "asterisk" => Some('*'),
+                                "parenleft" => Some('('),
+                                "parenright" => Some(')'),
+                                "question" => Some('?'),
+                                _ => None,
+                            }
+                        }
+                    };
+
+                    if raw == Some(Keysym::Escape) {
+                        this.niri.action_palette.hide();
+                    } else if raw == Some(Keysym::Return) {
+                        if let Some(action) = this.niri.action_palette.get_selected_action() {
+                            this.do_action(action, false);
+                        }
+                        this.niri.action_palette.hide();
+                    } else if raw == Some(Keysym::BackSpace) {
+                        this.niri.action_palette.handle_backspace();
+                    } else if raw == Some(Keysym::Up) {
+                        this.niri.action_palette.handle_move_up();
+                    } else if raw == Some(Keysym::Down) {
+                        this.niri.action_palette.handle_move_down();
+                    } else if let Some(sym) = raw {
+                        if let Some(c) = keysym_to_char(sym) {
+                            this.niri.action_palette.handle_char(c);
+                        }
+                    }
+
+                    this.niri.queue_redraw_all();
+                    this.niri.suppressed_keys.insert(key_code);
+                    return FilterResult::Intercept(None);
+                }
+
                 if this.niri.exit_confirm_dialog.is_open() && pressed {
                     if raw == Some(Keysym::Return) {
                         info!("quitting after confirming exit dialog");
@@ -2408,28 +2474,38 @@ impl State {
                     self.niri.queue_redraw_mru_output();
                 }
             }
-             Action::SetAnimationProfile(profile) => {
-                self.niri.config.borrow_mut().active_animation_profile = Some(profile);
+            Action::SetAnimationProfile(ref profile) => {
+                self.niri.config.borrow_mut().active_animation_profile = Some(profile.clone());
                 {
                     let config = self.niri.config.borrow();
                     self.niri.layout.update_config(&config);
                 }
+                self.niri.trigger_status_update();
                 self.niri.queue_redraw_all();
+                // Dispatch for Mode HUD feedback.
+                self.show_dispatch_feedback(&action);
             }
-            Action::ToggleScratchColumn(name) => {
-                if self.niri.toggle_scratch_column(&name) {
+            Action::ToggleScratchColumn(ref name) => {
+                if self.niri.toggle_scratch_column(name) {
                     self.maybe_warp_cursor_to_focus();
                     self.niri.layer_shell_on_demand_focus = None;
+                    self.niri.trigger_status_update();
                     self.niri.queue_redraw_all();
                 }
+                self.show_dispatch_feedback(&action);
             }
-            Action::SetMaterial(material_name) => {
-                let focus_ptr = self.niri.layout.focus().map(|fw| fw as *const crate::window::Mapped);
+            Action::SetMaterial(ref material_name) => {
+                let focus_ptr = self
+                    .niri
+                    .layout
+                    .focus()
+                    .map(|fw| fw as *const crate::window::Mapped);
                 if let Some(focus_ptr) = focus_ptr {
                     let mut found = false;
                     {
                         let config = self.niri.config.borrow();
-                        if let Some(mat) = config.materials.iter().find(|m| m.name == material_name) {
+                        if let Some(mat) = config.materials.iter().find(|m| &m.name == material_name)
+                        {
                             self.niri.layout.with_windows_mut(|mapped, _| {
                                 if (mapped as *const crate::window::Mapped) == focus_ptr {
                                     mapped.apply_material(mat);
@@ -2439,9 +2515,31 @@ impl State {
                         }
                     }
                     if found {
+                        self.niri.trigger_status_update();
                         self.niri.queue_redraw_all();
                     }
                 }
+                self.show_dispatch_feedback(&action);
+            }
+            Action::ToggleActionPalette | Action::ToggleSafeMode => {
+                use crate::liquid::dispatcher::DispatchSource;
+                let result = self.niri.dispatch(&action, DispatchSource::Keybind);
+                if let Some(msg) = result.message {
+                    if !msg.is_empty() {
+                        self.niri.mode_hud.trigger(msg);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Show dispatch result feedback via Mode HUD.
+    fn show_dispatch_feedback(&mut self, action: &Action) {
+        use crate::liquid::dispatcher::DispatchSource;
+        let result = self.niri.dispatch(action, DispatchSource::Keybind);
+        if let Some(msg) = result.message {
+            if !msg.is_empty() {
+                self.niri.mode_hud.trigger(msg);
             }
         }
     }
@@ -3874,6 +3972,48 @@ impl State {
         }
 
         if event.fingers() == 3 {
+            if let Some(output) = self.niri.output_under_cursor() {
+                let pointer = self.niri.seat.get_pointer().unwrap();
+                let pointer_pos = pointer.current_location();
+                if let Some(output_geo) = self.niri.global_space.output_geometry(&output) {
+                    let local_pos = pointer_pos - output_geo.loc.to_f64();
+                    let output_size = output_geo.size;
+                    let config = self.niri.config.borrow();
+
+                    let gesture = config
+                        .gestures
+                        .gesture_edges
+                        .iter()
+                        .find(|gesture| {
+                            gesture.matches_start_region(local_pos, output_size)
+                                && gesture.parsed_action().is_some()
+                        })
+                        .cloned();
+                    drop(config);
+
+                    if let Some(gesture) = gesture {
+                        let preview_applied = if gesture.interactive() {
+                            match gesture.parsed_action() {
+                                Some(Action::ToggleScratchColumn(ref name)) => {
+                                    self.niri.toggle_scratch_column(name)
+                                }
+                                _ => false,
+                            }
+                        } else {
+                            false
+                        };
+                        self.niri.gesture_edge_swipe_3f = Some(crate::niri::GestureEdgeSwipe {
+                            output,
+                            gesture,
+                            progress: 0.0,
+                            preview_applied,
+                        });
+                        self.niri.queue_redraw_all();
+                        return;
+                    }
+                }
+            }
+
             self.niri.gesture_swipe_3f_cumulative = Some((0., 0.));
 
             // We handled this event.
@@ -3919,6 +4059,7 @@ impl State {
             delta_y = libinput_event.dy_unaccelerated();
         }
 
+        let uninverted_delta_x = delta_x;
         let uninverted_delta_y = delta_y;
 
         let device = event.device();
@@ -3930,6 +4071,35 @@ impl State {
         }
 
         let is_overview_open = self.niri.layout.is_overview_open();
+
+        if let Some(gesture) = &mut self.niri.gesture_edge_swipe_3f {
+            if let Some(output_geo) = self.niri.global_space.output_geometry(&gesture.output) {
+                let output_w = output_geo.size.w.max(1) as f64;
+                let output_h = output_geo.size.h.max(1) as f64;
+                let delta = match gesture.gesture.edge.as_str() {
+                    "bottom" => (-uninverted_delta_y / output_h).max(0.0),
+                    "top" => (uninverted_delta_y / output_h).max(0.0),
+                    "left" => (uninverted_delta_x / output_w).max(0.0),
+                    "right" => (-uninverted_delta_x / output_w).max(0.0),
+                    _ => 0.0,
+                };
+                gesture.progress = (gesture.progress + delta).clamp(0.0, 1.0);
+            }
+
+            if let Some(progress_map) = gesture.gesture.progress_map.clone() {
+                if let Some(target) = progress_map.target.clone() {
+                    let landmarks = self.niri.config.borrow().landmarks.clone();
+                    self.niri.layout.with_windows_mut(|mapped, _| {
+                        if mapped.matches_gesture_progress_target(&target, &landmarks) {
+                            mapped.set_gesture_progress(gesture.progress, &progress_map);
+                        }
+                    });
+                }
+            }
+
+            self.niri.queue_redraw_all();
+            return;
+        }
 
         if let Some((cx, cy)) = &mut self.niri.gesture_swipe_3f_cumulative {
             *cx += delta_x;
@@ -4026,6 +4196,41 @@ impl State {
 
     fn on_gesture_swipe_end<I: InputBackend>(&mut self, event: I::GestureSwipeEndEvent) {
         self.niri.gesture_swipe_3f_cumulative = None;
+
+        if let Some(gesture) = self.niri.gesture_edge_swipe_3f.take() {
+            let committed = gesture.progress >= gesture.gesture.reveal_ratio();
+
+            if let Some(progress_map) = gesture.gesture.progress_map.as_ref() {
+                if let Some(target) = progress_map.target.clone() {
+                    let landmarks = self.niri.config.borrow().landmarks.clone();
+                    let target_clone = target.clone();
+                    self.niri.layout.with_windows_mut(|mapped, _| {
+                        if mapped.matches_gesture_progress_target(&target_clone, &landmarks) {
+                            // Animate toward the target instead of clearing instantly.
+                            mapped.animate_gesture_progress(if committed { 1.0 } else { 0.0 });
+                        }
+                    });
+                }
+            }
+
+            if committed {
+                if !gesture.preview_applied {
+                    if let Some(action) = gesture.gesture.parsed_action() {
+                        self.do_action(action, false);
+                    }
+                } else {
+                    self.niri.queue_redraw_all();
+                }
+            } else if gesture.preview_applied {
+                if let Some(Action::ToggleScratchColumn(name)) = gesture.gesture.parsed_action() {
+                    self.niri.toggle_scratch_column(&name);
+                }
+                self.niri.queue_redraw_all();
+            } else {
+                self.niri.queue_redraw_all();
+            }
+            return;
+        }
 
         let mut handled = false;
         let res = self.niri.layout.workspace_switch_gesture_end(Some(true));

@@ -57,4 +57,3 @@ pub struct Match {
     #[knuffel(property, str)]
     pub layer: Option<niri_ipc::Layer>,
 }
-

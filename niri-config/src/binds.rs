@@ -396,6 +396,8 @@ pub enum Action {
     SetAnimationProfile(#[knuffel(argument)] String),
     ToggleScratchColumn(#[knuffel(argument)] String),
     SetMaterial(#[knuffel(argument)] String),
+    ToggleActionPalette,
+    ToggleSafeMode,
 }
 
 impl From<niri_ipc::Action> for Action {
@@ -710,6 +712,8 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::SetAnimationProfile { profile } => Self::SetAnimationProfile(profile),
             niri_ipc::Action::ToggleScratchColumn { name } => Self::ToggleScratchColumn(name),
             niri_ipc::Action::SetMaterial { material } => Self::SetMaterial(material),
+            niri_ipc::Action::ToggleActionPalette {} => Self::ToggleActionPalette,
+            niri_ipc::Action::ToggleSafeMode {} => Self::ToggleSafeMode,
         }
     }
 }

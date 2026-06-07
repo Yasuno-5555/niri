@@ -201,13 +201,22 @@ where
 pub struct ScratchColumn {
     #[knuffel(argument)]
     pub name: String,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub width: Option<FloatOrInt<0, 1000>>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub position: Option<String>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub animation: Option<String>,
+
+    /// Monitor (output name) that this scratch column should open on.
+    /// If `None`, opens on the active monitor.
+    #[knuffel(child, unwrap(argument))]
+    pub monitor: Option<String>,
+
+    /// Automatically close the scratch column when it loses keyboard focus.
+    #[knuffel(child)]
+    pub close_on_focus_loss: Option<crate::utils::Flag>,
 }

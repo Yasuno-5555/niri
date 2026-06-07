@@ -2903,6 +2903,7 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         mut ctx: RenderCtx<R>,
         xray_pos: XrayPos,
         focus_ring: bool,
+        switch_progress: f64,
         push: &mut dyn FnMut(ScrollingSpaceRenderElement<R>),
     ) {
         let scale = Scale::from(self.scale);
@@ -2957,9 +2958,14 @@ impl<W: LayoutElement> ScrollingSpace<W> {
                 }
 
                 let xray_pos = xray_pos.offset(tile_pos);
-                tile.render(ctx.r(), tile_pos, xray_pos, focus_ring, &mut |elem| {
-                    push(elem.into())
-                });
+                tile.render(
+                    ctx.r(),
+                    tile_pos,
+                    xray_pos,
+                    focus_ring,
+                    switch_progress,
+                    &mut |elem| push(elem.into()),
+                );
             }
         }
     }
@@ -3541,6 +3547,9 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             window,
             original_window_size,
             data: InteractiveResizeData { edges },
+            last_delta: Point::from((0., 0.)),
+            tracker_w: SwipeTracker::new(),
+            tracker_h: SwipeTracker::new(),
         };
         self.interactive_resize = Some(resize);
 
@@ -3554,7 +3563,9 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         window: &W::Id,
         delta: Point<f64, Logical>,
     ) -> bool {
-        let Some(resize) = &self.interactive_resize else {
+        let is_centering = self.is_centering_focused_column();
+
+        let Some(resize) = &mut self.interactive_resize else {
             return false;
         };
 
@@ -3562,7 +3573,11 @@ impl<W: LayoutElement> ScrollingSpace<W> {
             return false;
         }
 
-        let is_centering = self.is_centering_focused_column();
+        let diff_delta = delta - resize.last_delta;
+        let now = self.clock.now_unadjusted();
+        resize.tracker_w.push(diff_delta.x, now);
+        resize.tracker_h.push(diff_delta.y, now);
+        resize.last_delta = delta;
 
         let col = self
             .columns
@@ -3618,6 +3633,15 @@ impl<W: LayoutElement> ScrollingSpace<W> {
         if let Some(window) = window {
             if window != &resize.window {
                 return;
+            }
+
+            let velocity = Size::new(resize.tracker_w.velocity(), resize.tracker_h.velocity());
+            if let Some(tile) = self
+                .columns
+                .iter_mut()
+                .find_map(|col| col.tiles.iter_mut().find(|t| t.window().id() == window))
+            {
+                tile.last_resize_velocity = Some(velocity);
             }
 
             // Animate the active window into view right away.

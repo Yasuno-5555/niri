@@ -6,6 +6,7 @@ use miette::{miette, IntoDiagnostic as _};
 use smithay::backend::renderer::Color32F;
 
 use crate::utils::{Flag, MergeWith};
+use crate::window_rule::Match;
 use crate::FloatOrInt;
 
 pub const DEFAULT_BACKGROUND_COLOR: Color = Color::from_array_unpremul([0.25, 0.25, 0.25, 1.]);
@@ -1162,30 +1163,60 @@ impl MergeWith<BackgroundEffectRule> for BackgroundEffect {
 pub struct Material {
     #[knuffel(argument)]
     pub name: String,
-    
+
     #[knuffel(child)]
     pub blur: Option<BlurPart>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub tint: Option<String>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub saturation: Option<FloatOrInt<0, 1000>>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub noise: Option<FloatOrInt<0, 1000>>,
 
     #[knuffel(child)]
     pub refraction: Option<MaterialRefraction>,
-    
+
     #[knuffel(child)]
     pub specular: Option<MaterialSpecular>,
-    
+
     #[knuffel(child)]
     pub edge_highlight: Option<MaterialEdgeHighlight>,
 
     #[knuffel(child, unwrap(argument))]
     pub bloom: Option<FloatOrInt<0, 1000>>,
+
+    #[knuffel(child)]
+    pub dispersion: Option<MaterialDispersion>,
+
+    #[knuffel(child)]
+    pub debug: Option<MaterialDebug>,
+}
+
+#[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
+pub struct MaterialDispersion {
+    #[knuffel(child, unwrap(argument))]
+    pub strength: Option<FloatOrInt<0, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub red_offset: Option<FloatOrInt<-1000, 1000>>,
+    #[knuffel(child, unwrap(argument))]
+    pub blue_offset: Option<FloatOrInt<-1000, 1000>>,
+}
+
+#[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
+pub struct MaterialDebug {
+    #[knuffel(child, unwrap(argument))]
+    pub show_bounds: Option<bool>,
+    #[knuffel(child, unwrap(argument))]
+    pub show_damage: Option<bool>,
+    #[knuffel(child, unwrap(argument))]
+    pub show_layer: Option<bool>,
+    #[knuffel(child, unwrap(argument))]
+    pub show_material_id: Option<bool>,
+    #[knuffel(child, unwrap(argument))]
+    pub show_animation_state: Option<bool>,
 }
 
 #[derive(knuffel::Decode, Debug, Clone, Copy, PartialEq)]
@@ -1220,18 +1251,33 @@ pub struct MaterialEdgeHighlight {
 pub struct EffectPreset {
     #[knuffel(argument)]
     pub name: String,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub material: Option<String>,
-    
+
     #[knuffel(child)]
     pub corner_radius: Option<CornerRadius>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub shadow: Option<String>,
-    
+
     #[knuffel(child, unwrap(argument))]
     pub border: Option<String>,
+}
+
+#[derive(knuffel::Decode, Debug, Clone, PartialEq)]
+pub struct Landmark {
+    #[knuffel(argument)]
+    pub name: String,
+
+    #[knuffel(children(name = "match"))]
+    pub matches: Vec<Match>,
+
+    #[knuffel(child, unwrap(argument))]
+    pub icon: Option<String>,
+
+    #[knuffel(child, unwrap(argument))]
+    pub color: Option<String>,
 }
 
 #[cfg(test)]

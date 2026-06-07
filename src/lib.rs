@@ -9,7 +9,9 @@ pub mod cli;
 pub mod cursor;
 #[cfg(feature = "dbus")]
 pub mod dbus;
+pub mod dispatch;
 pub mod frame_clock;
+pub mod liquid;
 pub mod handlers;
 pub mod input;
 pub mod ipc;

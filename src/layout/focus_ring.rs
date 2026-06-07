@@ -65,6 +65,7 @@ impl FocusRing {
         radius: CornerRadius,
         scale: f64,
         alpha: f32,
+        sweep_progress: f32,
     ) {
         let width = self.config.width;
         self.full_size = win_size + Size::from((width, width)).upscale(2.);
@@ -192,6 +193,7 @@ impl FocusRing {
                     radius,
                     scale as f32,
                     alpha,
+                    sweep_progress,
                 );
             }
         } else {
@@ -211,6 +213,7 @@ impl FocusRing {
                 radius,
                 scale as f32,
                 alpha,
+                sweep_progress,
             );
         }
     }

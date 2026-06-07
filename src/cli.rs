@@ -109,6 +109,28 @@ pub enum Msg {
     OverviewState,
     /// List screencasts.
     Casts,
+    /// List supported capabilities.
+    Capabilities,
+    /// List all registered actions.
+    Actions,
+    /// Show recent StateBus events.
+    Events,
+    /// Inspect the focused window.
+    Inspect,
+    /// Trace rule matching for the focused window.
+    TraceRules,
+    /// Manage scripts (list, reload, errors).
+    Scripts {
+        /// Action: list (default), reload, errors.
+        #[arg(default_value = "list")]
+        action: String,
+    },
+    /// Execute a Hyprland-compatible dispatch command.
+    Dispatch {
+        /// The dispatch command and arguments.
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug, clap::ValueEnum)]

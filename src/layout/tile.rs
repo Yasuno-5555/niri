@@ -23,17 +23,23 @@ use crate::render_helpers::border::BorderRenderElement;
 use crate::render_helpers::clipped_surface::{ClippedSurfaceRenderElement, RoundedCornerDamage};
 use crate::render_helpers::damage::ExtraDamage;
 use crate::render_helpers::offscreen::{OffscreenBuffer, OffscreenRenderElement};
+use crate::render_helpers::primary_gpu_texture::PrimaryGpuTextureRenderElement;
+use crate::render_helpers::renderer::AsGlesRenderer;
 use crate::render_helpers::renderer::NiriRenderer;
 use crate::render_helpers::resize::ResizeRenderElement;
 use crate::render_helpers::shadow::ShadowRenderElement;
 use crate::render_helpers::snapshot::RenderSnapshot;
 use crate::render_helpers::solid_color::{SolidColorBuffer, SolidColorRenderElement};
+use crate::render_helpers::texture::{TextureBuffer, TextureRenderElement};
 use crate::render_helpers::xray::{Xray, XrayPos};
 use crate::render_helpers::{RenderCtx, RenderTarget};
 use crate::utils::transaction::Transaction;
 use crate::utils::{
     baba_is_float_offset, round_logical_in_physical, round_logical_in_physical_max1,
 };
+use pangocairo::cairo::{self, ImageSurface};
+use pangocairo::pango::FontDescription;
+use std::cell::RefCell;
 
 /// Toplevel window with decorations.
 #[derive(Debug)]
@@ -78,8 +84,14 @@ pub struct Tile<W: LayoutElement> {
     /// Currently selected preset width index when this tile is floating.
     pub(super) floating_preset_width_idx: Option<usize>,
 
+    pub(super) landmark_texture:
+        RefCell<Option<TextureBuffer<smithay::backend::renderer::gles::GlesTexture>>>,
+
     /// Currently selected preset height index when this tile is floating.
     pub(super) floating_preset_height_idx: Option<usize>,
+
+    /// Last resize velocity when interactive resizing ended.
+    pub(super) last_resize_velocity: Option<Size<f64, Logical>>,
 
     /// The animation upon opening a window.
     open_animation: Option<OpenAnimation>,
@@ -95,6 +107,9 @@ pub struct Tile<W: LayoutElement> {
 
     /// The animation of the tile's opacity.
     pub(super) alpha_animation: Option<AlphaAnimation>,
+
+    /// The focus active switch transition animation.
+    focus_active_anim: Option<Animation>,
 
     /// Offset during the initial interactive move rubberband.
     pub(super) interactive_move_offset: Point<f64, Logical>,
@@ -133,6 +148,7 @@ niri_render_elements! {
         Offscreen = OffscreenRenderElement,
         ExtraDamage = ExtraDamage,
         BackgroundEffect = BackgroundEffectElement,
+        Texture = PrimaryGpuTextureRenderElement,
     }
 }
 
@@ -205,6 +221,7 @@ impl<W: LayoutElement> Tile<W> {
             move_x_animation: None,
             move_y_animation: None,
             alpha_animation: None,
+            focus_active_anim: None,
             interactive_move_offset: Point::from((0., 0.)),
             unmap_snapshot: None,
             rounded_corner_damage: Default::default(),
@@ -212,6 +229,8 @@ impl<W: LayoutElement> Tile<W> {
             scale,
             clock,
             options,
+            landmark_texture: RefCell::new(None),
+            last_resize_velocity: None,
         }
     }
 
@@ -253,6 +272,7 @@ impl<W: LayoutElement> Tile<W> {
         self.shadow.update_config(shadow_config);
 
         self.window.update_config(self.options.blur);
+        self.landmark_texture.borrow_mut().take();
     }
 
     pub fn update_shaders(&mut self) {
@@ -351,11 +371,29 @@ impl<W: LayoutElement> Tile<W> {
             let tile_change = f64::max(tile_change.x.abs(), tile_change.y.abs());
             let change = f64::max(change, tile_change);
             if change > RESIZE_ANIMATION_THRESHOLD {
+                let initial_velocity = if let Some(vel) = self.last_resize_velocity.take() {
+                    let w_diff = self.window.size().w as f64 - size_from.w;
+                    let h_diff = self.window.size().h as f64 - size_from.h;
+                    let mut vel_val = 0.;
+                    if w_diff.abs() > h_diff.abs() {
+                        if w_diff.abs() > 0.001 {
+                            vel_val = vel.w / w_diff;
+                        }
+                    } else {
+                        if h_diff.abs() > 0.001 {
+                            vel_val = vel.h / h_diff;
+                        }
+                    }
+                    vel_val
+                } else {
+                    0.
+                };
+
                 let anim = Animation::new(
                     self.clock.clone(),
                     0.,
                     1.,
-                    0.,
+                    initial_velocity,
                     self.options.animations.window_resize.anim,
                 );
 
@@ -454,12 +492,45 @@ impl<W: LayoutElement> Tile<W> {
                 .alpha_animation
                 .as_ref()
                 .is_some_and(|alpha| !alpha.anim.is_done())
+            || self
+                .focus_active_anim
+                .as_ref()
+                .is_some_and(|anim| !anim.is_done())
     }
 
     pub fn update_render_elements(&mut self, is_active: bool, view_rect: Rectangle<f64, Logical>) {
         let rules = self.window.rules();
         let animated_tile_size = self.animated_tile_size();
         let expanded_progress = self.expanded_progress();
+
+        // Initialize or update focus transition animation
+        let target = if is_active { 1.0 } else { 0.0 };
+        if let Some(ref mut anim) = self.focus_active_anim {
+            if anim.to() != target {
+                *anim = Animation::new(
+                    self.clock.clone(),
+                    anim.value(),
+                    target,
+                    0.0,
+                    self.options.animations.window_movement.0,
+                );
+            }
+        } else {
+            let anim = Animation::new(
+                self.clock.clone(),
+                target,
+                target,
+                0.0,
+                self.options.animations.window_movement.0,
+            );
+            self.focus_active_anim = Some(anim);
+        }
+
+        let border_sweep_progress = self
+            .focus_active_anim
+            .as_ref()
+            .map_or(0.0, |anim| anim.value() as f32);
+        let ring_sweep_progress = border_sweep_progress;
 
         let draw_border_with_background = rules
             .draw_border_with_background
@@ -502,6 +573,7 @@ impl<W: LayoutElement> Tile<W> {
             radius,
             self.scale,
             1. - expanded_progress as f32,
+            border_sweep_progress,
         );
 
         let radius = if self.visual_border_width().is_some() {
@@ -534,6 +606,7 @@ impl<W: LayoutElement> Tile<W> {
             radius,
             self.scale,
             1. - expanded_progress as f32,
+            ring_sweep_progress,
         );
 
         self.fullscreen_backdrop.resize(animated_tile_size);
@@ -573,8 +646,16 @@ impl<W: LayoutElement> Tile<W> {
     }
 
     pub fn animate_move_from(&mut self, from: Point<f64, Logical>) {
-        self.animate_move_x_from(from.x);
-        self.animate_move_y_from(from.y);
+        self.animate_move_from_with_velocity(from, Point::from((0., 0.)));
+    }
+
+    pub fn animate_move_from_with_velocity(
+        &mut self,
+        from: Point<f64, Logical>,
+        velocity: Point<f64, Logical>,
+    ) {
+        self.animate_move_x_from_with_velocity(from.x, velocity.x);
+        self.animate_move_y_from_with_velocity(from.y, velocity.y);
     }
 
     pub fn animate_move_x_from(&mut self, from: f64) {
@@ -582,13 +663,38 @@ impl<W: LayoutElement> Tile<W> {
     }
 
     pub fn animate_move_x_from_with_config(&mut self, from: f64, config: niri_config::Animation) {
+        self.animate_move_x_from_with_velocity_and_config(from, 0., config);
+    }
+
+    pub fn animate_move_x_from_with_velocity(&mut self, from: f64, velocity: f64) {
+        self.animate_move_x_from_with_velocity_and_config(
+            from,
+            velocity,
+            self.options.animations.window_movement.0,
+        );
+    }
+
+    pub fn animate_move_x_from_with_velocity_and_config(
+        &mut self,
+        from: f64,
+        velocity: f64,
+        config: niri_config::Animation,
+    ) {
         let current_offset = self.render_offset().x;
+
+        let initial_velocity = if from.abs() > 0.001 {
+            velocity / from
+        } else {
+            0.
+        };
 
         // Preserve the previous config if ongoing.
         let anim = self.move_x_animation.take().map(|move_| move_.anim);
         let anim = anim
-            .map(|anim| anim.restarted(1., 0., 0.))
-            .unwrap_or_else(|| Animation::new(self.clock.clone(), 1., 0., 0., config));
+            .map(|anim| anim.restarted(1., 0., initial_velocity))
+            .unwrap_or_else(|| {
+                Animation::new(self.clock.clone(), 1., 0., initial_velocity, config)
+            });
 
         self.move_x_animation = Some(MoveAnimation {
             anim,
@@ -601,13 +707,38 @@ impl<W: LayoutElement> Tile<W> {
     }
 
     pub fn animate_move_y_from_with_config(&mut self, from: f64, config: niri_config::Animation) {
+        self.animate_move_y_from_with_velocity_and_config(from, 0., config);
+    }
+
+    pub fn animate_move_y_from_with_velocity(&mut self, from: f64, velocity: f64) {
+        self.animate_move_y_from_with_velocity_and_config(
+            from,
+            velocity,
+            self.options.animations.window_movement.0,
+        );
+    }
+
+    pub fn animate_move_y_from_with_velocity_and_config(
+        &mut self,
+        from: f64,
+        velocity: f64,
+        config: niri_config::Animation,
+    ) {
         let current_offset = self.render_offset().y;
+
+        let initial_velocity = if from.abs() > 0.001 {
+            velocity / from
+        } else {
+            0.
+        };
 
         // Preserve the previous config if ongoing.
         let anim = self.move_y_animation.take().map(|move_| move_.anim);
         let anim = anim
-            .map(|anim| anim.restarted(1., 0., 0.))
-            .unwrap_or_else(|| Animation::new(self.clock.clone(), 1., 0., 0., config));
+            .map(|anim| anim.restarted(1., 0., initial_velocity))
+            .unwrap_or_else(|| {
+                Animation::new(self.clock.clone(), 1., 0., initial_velocity, config)
+            });
 
         self.move_y_animation = Some(MoveAnimation {
             anim,
@@ -1027,6 +1158,7 @@ impl<W: LayoutElement> Tile<W> {
         location: Point<f64, Logical>,
         mut xray_pos: XrayPos,
         focus_ring: bool,
+        switch_progress: f64,
         push: &mut dyn FnMut(TileRenderElement<R>),
     ) {
         let _span = tracy_client::span!("Tile::render_inner");
@@ -1035,10 +1167,13 @@ impl<W: LayoutElement> Tile<W> {
         let fullscreen_progress = self.fullscreen_progress();
         let expanded_progress = self.expanded_progress();
 
+        let peak_p = (1.0 - (2.0 * (switch_progress - 0.5)).abs()).max(0.0) as f32;
+
         let win_alpha = if self.window.is_ignoring_opacity_window_rule() {
             1.
         } else {
             let alpha = self.window.rules().opacity.unwrap_or(1.).clamp(0., 1.);
+            let alpha = alpha * self.window.gesture_opacity_multiplier();
 
             // Interpolate towards alpha = 1. at fullscreen.
             let p = fullscreen_progress as f32;
@@ -1059,8 +1194,23 @@ impl<W: LayoutElement> Tile<W> {
 
         let window_loc = self.window_loc();
         let window_size = self.window_size();
-        let animated_window_size = self.animated_window_size();
-        let window_render_loc = location + window_loc;
+        let mut animated_window_size = self.animated_window_size();
+        let mut window_render_loc = location + window_loc;
+        window_render_loc.x += self.window.gesture_translate_x(window_size.w);
+        window_render_loc.y += self.window.gesture_translate_y(window_size.h);
+
+        // Apply workspace transition desaturation via the focus flow effect.
+        self.window.set_workspace_desaturate(peak_p);
+
+        if switch_progress > 0.0 {
+            let scale_factor = 1.0 - 0.08 * peak_p as f64;
+            let dw = window_size.w * (1.0 - scale_factor);
+            let dh = window_size.h * (1.0 - scale_factor);
+            window_render_loc.x += dw / 2.0;
+            window_render_loc.y += dh / 2.0;
+            animated_window_size.w *= scale_factor;
+            animated_window_size.h *= scale_factor;
+        }
         let area = Rectangle::new(window_render_loc, animated_window_size);
         xray_pos = xray_pos.offset(window_loc);
 
@@ -1068,7 +1218,8 @@ impl<W: LayoutElement> Tile<W> {
 
         // Clip to geometry including during the fullscreen animation to help with buggy clients
         // that submit a full-sized buffer before acking the fullscreen state (Firefox).
-        let clip_to_geometry = fullscreen_progress < 1. && rules.clip_to_geometry == Some(true);
+        let clip_to_geometry =
+            (fullscreen_progress < 1. && rules.clip_to_geometry == Some(true)) || peak_p > 0.0;
         let radius = self
             .window
             .geometry_corner_radius()
@@ -1175,8 +1326,37 @@ impl<W: LayoutElement> Tile<W> {
                     // If we should clip to geometry, render a clipped window.
                     if clip_to_geometry {
                         if let Some(shader) = clip_shader.clone() {
-                            let liquid = rules.background_effect.foreground_liquid.unwrap_or(rules.background_effect.liquid.unwrap_or(false));
-                            if liquid || ClippedSurfaceRenderElement::will_clip(&elem, scale, geo, radius) {
+                            let liquid = rules
+                                .background_effect
+                                .foreground_liquid
+                                .unwrap_or(rules.background_effect.liquid.unwrap_or(false))
+                                || peak_p > 0.0;
+                            if liquid
+                                || ClippedSurfaceRenderElement::will_clip(&elem, scale, geo, radius)
+                            {
+                                let refraction_val =
+                                    rules.background_effect.foreground_refraction.unwrap_or(
+                                        rules.background_effect.refraction.unwrap_or(0.0),
+                                    ) as f32;
+                                let aberration_val = rules
+                                    .background_effect
+                                    .foreground_chromatic_aberration
+                                    .unwrap_or(
+                                        rules.background_effect.chromatic_aberration.unwrap_or(0.0),
+                                    ) as f32;
+                                let noise_val = rules.background_effect.noise.unwrap_or(0.0) as f32;
+                                let saturation_val =
+                                    rules.background_effect.saturation.unwrap_or(1.0) as f32;
+                                let specular_val =
+                                    rules.background_effect.specular.unwrap_or(0.0) as f32;
+                                let edge_highlight_val =
+                                    rules.background_effect.edge_highlight.unwrap_or(0.0) as f32;
+
+                                let adjusted_refraction = refraction_val + 0.025 * peak_p;
+                                let adjusted_aberration = aberration_val + 0.04 * peak_p;
+                                let adjusted_noise = noise_val + 0.1 * peak_p;
+                                let adjusted_saturation = saturation_val * (1.0 - 0.3 * peak_p);
+
                                 return ClippedSurfaceRenderElement::new(
                                     elem,
                                     scale,
@@ -1184,12 +1364,12 @@ impl<W: LayoutElement> Tile<W> {
                                     shader.clone(),
                                     radius,
                                     liquid,
-                                    rules.background_effect.foreground_refraction.unwrap_or(rules.background_effect.refraction.unwrap_or(0.0)) as f32,
-                                    rules.background_effect.foreground_chromatic_aberration.unwrap_or(rules.background_effect.chromatic_aberration.unwrap_or(0.0)) as f32,
-                                    rules.background_effect.noise.unwrap_or(0.0) as f32,
-                                    rules.background_effect.saturation.unwrap_or(1.0) as f32,
-                                    rules.background_effect.specular.unwrap_or(0.0) as f32,
-                                    rules.background_effect.edge_highlight.unwrap_or(0.0) as f32,
+                                    adjusted_refraction,
+                                    adjusted_aberration,
+                                    adjusted_noise,
+                                    adjusted_saturation,
+                                    specular_val,
+                                    edge_highlight_val,
                                 )
                                 .into();
                             }
@@ -1219,6 +1399,7 @@ impl<W: LayoutElement> Tile<W> {
                             radius,
                             scale.x as f32,
                             1.,
+                            0.,
                         )
                         .with_location(geo.loc)
                         .into();
@@ -1273,6 +1454,7 @@ impl<W: LayoutElement> Tile<W> {
                     radius,
                     scale.x as f32,
                     alpha,
+                    0.,
                 )
                 .with_location(location);
                 push(elem.into());
@@ -1320,6 +1502,44 @@ impl<W: LayoutElement> Tile<W> {
             xray_pos,
             &mut |elem| push(elem.into()),
         );
+
+        if let Some(landmark) = self.window().find_landmark(&self.options.landmarks) {
+            let mut cache = self.landmark_texture.borrow_mut();
+            if cache.is_none() {
+                if let Ok(buf) = render_landmark_pill(
+                    self.scale,
+                    &landmark.name,
+                    landmark.icon.as_deref(),
+                    landmark.color.as_deref(),
+                ) {
+                    if let Ok(tex) = TextureBuffer::from_memory_buffer(
+                        ctx.as_gles().renderer.as_gles_renderer(),
+                        &buf,
+                    ) {
+                        *cache = Some(tex);
+                    }
+                }
+            }
+
+            if let Some(tex) = cache.as_ref() {
+                let size = tex.logical_size();
+                let win_geo = self.window.size();
+                let x = location.x + (win_geo.w as f64 - size.w) / 2.0;
+                let y = location.y - size.h / 2.0;
+
+                let rect = Rectangle::new(Point::new(x, y), size);
+                let elem = TextureRenderElement::from_texture_buffer(
+                    tex.clone(),
+                    rect.loc,
+                    1.0,
+                    None,
+                    None,
+                    Kind::Unspecified,
+                );
+                let elem = PrimaryGpuTextureRenderElement(elem);
+                push(TileRenderElement::Texture(elem));
+            }
+        }
     }
 
     pub fn render<R: NiriRenderer>(
@@ -1328,6 +1548,7 @@ impl<W: LayoutElement> Tile<W> {
         location: Point<f64, Logical>,
         xray_pos: XrayPos,
         focus_ring: bool,
+        switch_progress: f64,
         push: &mut dyn FnMut(TileRenderElement<R>),
     ) {
         let _span = tracy_client::span!("Tile::render");
@@ -1350,6 +1571,7 @@ impl<W: LayoutElement> Tile<W> {
                 Point::new(0., 0.),
                 xray_pos,
                 focus_ring,
+                switch_progress,
                 &mut |elem| elements.push(elem),
             );
             match open.render(
@@ -1377,6 +1599,7 @@ impl<W: LayoutElement> Tile<W> {
                 Point::new(0., 0.),
                 xray_pos,
                 focus_ring,
+                switch_progress,
                 &mut |elem| elements.push(elem),
             );
             match alpha.offscreen.render(ctx.renderer, scale, &elements) {
@@ -1395,7 +1618,14 @@ impl<W: LayoutElement> Tile<W> {
         }
 
         if !pushed {
-            self.render_inner(ctx, location, xray_pos, focus_ring, &mut |elem| push(elem));
+            self.render_inner(
+                ctx,
+                location,
+                xray_pos,
+                focus_ring,
+                switch_progress,
+                &mut |elem| push(elem),
+            );
         }
     }
 
@@ -1433,6 +1663,7 @@ impl<W: LayoutElement> Tile<W> {
             Point::from((0., 0.)),
             xray_pos,
             false,
+            0.0,
             &mut |elem| contents.push(elem),
         );
 
@@ -1484,6 +1715,7 @@ impl<W: LayoutElement> Tile<W> {
                     Point::from((0., 0.)),
                     xray_pos,
                     false,
+                    0.0,
                     &mut |elem| contents.push(elem),
                 );
                 contents_with_blocked_out_bg = Some(contents);
@@ -1504,6 +1736,7 @@ impl<W: LayoutElement> Tile<W> {
             Point::from((0., 0.)),
             xray_pos,
             false,
+            0.0,
             &mut |elem| blocked_out_contents.push(elem),
         );
 
@@ -1563,4 +1796,96 @@ impl<W: LayoutElement> Tile<W> {
         assert_abs_diff_eq!(size.w, rounded.w, epsilon = 1e-5);
         assert_abs_diff_eq!(size.h, rounded.h, epsilon = 1e-5);
     }
+}
+
+fn render_landmark_pill(
+    scale: f64,
+    name: &str,
+    icon: Option<&str>,
+    color_hex: Option<&str>,
+) -> anyhow::Result<crate::render_helpers::memory::MemoryBuffer> {
+    use smithay::reexports::gbm::Format as Fourcc;
+    use smithay::utils::Transform;
+
+    let padding_x: i32 = crate::utils::to_physical_precise_round(scale, 10.0);
+    let padding_y: i32 = crate::utils::to_physical_precise_round(scale, 4.0);
+
+    let mut font = FontDescription::from_string("sans bold 10px");
+    let font_size: i32 = crate::utils::to_physical_precise_round(scale, font.size());
+    font.set_absolute_size(font_size as f64);
+
+    let hex = color_hex.unwrap_or("#89b4fa");
+    let (r, g, b) = if hex.starts_with('#') && hex.len() == 7 {
+        let r = u8::from_str_radix(&hex[1..3], 16).unwrap_or(137) as f64 / 255.0;
+        let g = u8::from_str_radix(&hex[3..5], 16).unwrap_or(180) as f64 / 255.0;
+        let b = u8::from_str_radix(&hex[5..7], 16).unwrap_or(250) as f64 / 255.0;
+        (r, g, b)
+    } else {
+        (137.0 / 255.0, 180.0 / 255.0, 250.0 / 255.0)
+    };
+
+    let temp_surface = ImageSurface::create(cairo::Format::ARgb32, 1, 1)?;
+    let temp_cr = cairo::Context::new(&temp_surface)?;
+    let layout = pangocairo::functions::create_layout(&temp_cr);
+    layout.set_font_description(Some(&font));
+
+    let text = if let Some(ico) = icon {
+        format!("{} {}", ico, name)
+    } else {
+        name.to_string()
+    };
+    layout.set_text(&text);
+
+    let (text_width, text_height) = layout.pixel_size();
+
+    let width = text_width + padding_x * 2;
+    let height = text_height + padding_y * 2;
+
+    let surface = ImageSurface::create(cairo::Format::ARgb32, width, height)?;
+    let cr = cairo::Context::new(&surface)?;
+
+    let radius = height as f64 / 2.0;
+    cr.new_sub_path();
+    cr.arc(
+        width as f64 - radius,
+        radius,
+        radius,
+        -std::f64::consts::FRAC_PI_2,
+        std::f64::consts::FRAC_PI_2,
+    );
+    cr.arc(
+        radius,
+        radius,
+        radius,
+        std::f64::consts::FRAC_PI_2,
+        3.0 * std::f64::consts::FRAC_PI_2,
+    );
+    cr.close_path();
+
+    cr.set_source_rgba(r, g, b, 0.85);
+    cr.fill_preserve()?;
+
+    cr.set_source_rgba(1.0, 1.0, 1.0, 0.25);
+    cr.set_line_width(1.0 * scale);
+    cr.stroke()?;
+
+    cr.set_source_rgb(1.0, 1.0, 1.0);
+    cr.move_to(padding_x.into(), padding_y.into());
+    let render_layout = pangocairo::functions::create_layout(&cr);
+    render_layout.set_font_description(Some(&font));
+    render_layout.set_text(&text);
+    pangocairo::functions::show_layout(&cr, &render_layout);
+
+    drop(cr);
+
+    let data = surface.take_data().unwrap();
+    let buffer = crate::render_helpers::memory::MemoryBuffer::new(
+        data.to_vec(),
+        Fourcc::Argb8888,
+        (width, height),
+        scale,
+        Transform::Normal,
+    );
+
+    Ok(buffer)
 }

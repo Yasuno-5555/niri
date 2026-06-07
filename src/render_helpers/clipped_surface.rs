@@ -119,9 +119,15 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
             mat3_uniform("input_to_geo", input_to_geo),
         ];
 
-        uniforms.push(Uniform::new("liquid", if self.liquid { 1.0f32 } else { 0.0f32 }));
+        uniforms.push(Uniform::new(
+            "liquid",
+            if self.liquid { 1.0f32 } else { 0.0f32 },
+        ));
         uniforms.push(Uniform::new("refraction", self.refraction));
-        uniforms.push(Uniform::new("chromatic_aberration", self.chromatic_aberration));
+        uniforms.push(Uniform::new(
+            "chromatic_aberration",
+            self.chromatic_aberration,
+        ));
         uniforms.push(Uniform::new("noise", self.noise));
         uniforms.push(Uniform::new("saturation", self.saturation));
         uniforms.push(Uniform::new("bg_color", [0f32, 0., 0., 0.]));

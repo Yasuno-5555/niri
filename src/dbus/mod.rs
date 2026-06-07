@@ -11,6 +11,8 @@ pub mod gnome_shell_introspect;
 pub mod gnome_shell_screenshot;
 pub mod mutter_display_config;
 pub mod mutter_service_channel;
+pub mod power_profiles;
+pub mod upower;
 
 #[cfg(feature = "xdp-gnome-screencast")]
 pub mod mutter_screen_cast;
@@ -38,6 +40,8 @@ pub struct DBusServers {
     pub conn_screen_cast: Option<Connection>,
     pub conn_login1: Option<Connection>,
     pub conn_locale1: Option<Connection>,
+    pub conn_power_profiles: Option<Connection>,
+    pub conn_upower: Option<Connection>,
     pub conn_keyboard_monitor: Option<Connection>,
 }
 
@@ -167,6 +171,38 @@ impl DBusServers {
             }
             Err(err) => {
                 warn!("error starting locale1 watcher: {err:?}");
+            }
+        }
+
+        let (to_niri, from_power_profiles) = calloop::channel::channel();
+        niri.event_loop
+            .insert_source(from_power_profiles, move |event, _, state| match event {
+                calloop::channel::Event::Msg(msg) => state.on_power_profiles_msg(msg),
+                calloop::channel::Event::Closed => (),
+            })
+            .unwrap();
+        match power_profiles::start(to_niri) {
+            Ok(conn) => {
+                dbus.conn_power_profiles = Some(conn);
+            }
+            Err(err) => {
+                warn!("error starting power profile watcher: {err:?}");
+            }
+        }
+
+        let (to_niri, from_upower) = calloop::channel::channel();
+        niri.event_loop
+            .insert_source(from_upower, move |event, _, state| match event {
+                calloop::channel::Event::Msg(msg) => state.on_upower_msg(msg),
+                calloop::channel::Event::Closed => (),
+            })
+            .unwrap();
+        match upower::start(to_niri) {
+            Ok(conn) => {
+                dbus.conn_upower = Some(conn);
+            }
+            Err(err) => {
+                warn!("error starting upower watcher: {err:?}");
             }
         }
 

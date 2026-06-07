@@ -455,7 +455,7 @@ fn render(
     })
 }
 
-fn action_name(action: &Action) -> String {
+pub(crate) fn action_name(action: &Action) -> String {
     match action {
         Action::Quit(_) => String::from("Exit niri"),
         Action::ShowHotkeyOverlay => String::from("Show Important Hotkeys"),
@@ -489,8 +489,30 @@ fn action_name(action: &Action) -> String {
             // Fairly crude but should get the job done in most cases.
             command.split_ascii_whitespace().next().unwrap_or("")
         ),
-        _ => String::from("FIXME: Unknown"),
+        Action::SetAnimationProfile(profile) => format!("Set Animation Profile: {profile}"),
+        Action::ToggleScratchColumn(name) => format!("Toggle Scratch Column: {name}"),
+        Action::SetMaterial(material) => format!("Set Material: {material}"),
+        Action::ToggleActionPalette => String::from("Toggle Action Palette"),
+        Action::ToggleSafeMode => String::from("Toggle Safe Mode"),
+        _ => fallback_action_name(action),
     }
+}
+
+fn fallback_action_name(action: &Action) -> String {
+    let debug = format!("{action:?}");
+    let variant = debug
+        .split(['(', '{', ' '])
+        .next()
+        .unwrap_or(debug.as_str());
+
+    let mut human = String::with_capacity(variant.len() + 8);
+    for (idx, ch) in variant.chars().enumerate() {
+        if idx > 0 && ch.is_ascii_uppercase() {
+            human.push(' ');
+        }
+        human.push(ch);
+    }
+    human
 }
 
 fn key_name(screen_reader: bool, mod_key: ModKey, key: &Key) -> String {

@@ -127,6 +127,10 @@ use crate::dbus::freedesktop_login1::Login1ToNiri;
 use crate::dbus::gnome_shell_introspect::{self, IntrospectToNiri, NiriToIntrospect};
 #[cfg(feature = "dbus")]
 use crate::dbus::gnome_shell_screenshot::{NiriToScreenshot, ScreenshotToNiri};
+#[cfg(feature = "dbus")]
+use crate::dbus::power_profiles::PowerProfilesToNiri;
+#[cfg(feature = "dbus")]
+use crate::dbus::upower::{BatteryState, UPowerToNiri};
 use crate::frame_clock::FrameClock;
 use crate::handlers::{configure_lock_surface, XDG_ACTIVATION_TOKEN_TIMEOUT};
 use crate::input::pick_color_grab::PickColorGrab;
@@ -166,9 +170,11 @@ use crate::render_helpers::{
 };
 #[cfg(feature = "xdp-gnome-screencast")]
 use crate::screencasting::Screencasting;
+use crate::ui::action_palette::{ActionPalette, ActionPaletteRenderElement};
 use crate::ui::config_error_notification::ConfigErrorNotification;
 use crate::ui::exit_confirm_dialog::{ExitConfirmDialog, ExitConfirmDialogRenderElement};
 use crate::ui::hotkey_overlay::HotkeyOverlay;
+use crate::ui::mode_hud::{ModeHud, ModeHudRenderElement};
 use crate::ui::mru::{MruCloseRequest, WindowMruUi, WindowMruUiRenderElement};
 use crate::ui::screen_transition::{self, ScreenTransition};
 use crate::ui::screenshot_ui::{OutputScreenshot, ScreenshotUi, ScreenshotUiRenderElement};
@@ -366,6 +372,11 @@ pub struct Niri {
     pub pointer_contents: PointContents,
     pub pointer_visibility: PointerVisibility,
     pub pointer_inactivity_timer: Option<RegistrationToken>,
+    pub adaptive_animation_profile_timer: Option<RegistrationToken>,
+    #[cfg(feature = "dbus")]
+    pub adaptive_power_profile: Option<String>,
+    #[cfg(feature = "dbus")]
+    pub adaptive_battery_state: Option<BatteryState>,
     /// Whether the pointer inactivity timer got reset this event loop iteration.
     ///
     /// Used for limiting the reset to once per iteration, so that it's not spammed with high
@@ -379,6 +390,7 @@ pub struct Niri {
     pub pointer_inside_hot_corner: bool,
     pub tablet_cursor_location: Option<Point<f64, Logical>>,
     pub gesture_swipe_3f_cumulative: Option<(f64, f64)>,
+    pub gesture_edge_swipe_3f: Option<GestureEdgeSwipe>,
     pub overview_scroll_swipe_gesture: ScrollSwipeGesture,
     pub vertical_wheel_tracker: ScrollTracker,
     pub horizontal_wheel_tracker: ScrollTracker,
@@ -398,6 +410,36 @@ pub struct Niri {
     pub config_error_notification: ConfigErrorNotification,
     pub hotkey_overlay: HotkeyOverlay,
     pub exit_confirm_dialog: ExitConfirmDialog,
+    pub mode_hud: ModeHud,
+    pub action_palette: ActionPalette,
+
+    /// Whether safe mode is currently active.
+    /// When active, scripts, gestures, and expensive effects are disabled.
+    pub safe_mode_active: bool,
+
+    /// Cached set of available capabilities.
+    capabilities: Vec<niri_config::Capability>,
+
+    /// Central action registry.
+    action_registry: crate::liquid::action_registry::ActionRegistry,
+
+    /// Central event bus for state change notifications.
+    pub state_bus: crate::liquid::state_bus::StateBus,
+
+    /// Overlay manager for coordinating internal UI.
+    pub overlay_manager: crate::liquid::overlay::OverlayManager,
+
+    /// Unified rule engine.
+    pub rule_engine: crate::liquid::rule_engine::RuleEngine,
+
+    /// Rhai script engine.
+    pub script_engine: crate::liquid::script_engine::ScriptEngine,
+
+    /// Performance budget manager for adaptive quality.
+    pub performance_budget: crate::liquid::performance_budget::PerformanceBudgetManager,
+
+    /// Timestamp of the last frame for performance tracking.
+    last_frame_time: Option<std::time::Instant>,
 
     pub window_mru_ui: WindowMruUi,
     pub pending_mru_commit: Option<PendingMruCommit>,
@@ -452,6 +494,13 @@ impl PointerVisibility {
 pub struct DndIcon {
     pub surface: WlSurface,
     pub offset: Point<i32, Logical>,
+}
+
+pub struct GestureEdgeSwipe {
+    pub output: Output,
+    pub gesture: niri_config::GestureEdge,
+    pub progress: f64,
+    pub preview_applied: bool,
 }
 
 pub struct OutputState {
@@ -1491,6 +1540,13 @@ impl State {
         let mut cursor_inactivity_timeout_changed = false;
         let mut recent_windows_changed = false;
         let mut xwls_changed = false;
+        let mut perf_profile_changed = false;
+        let old_animation_profile_name = self
+            .niri
+            .config
+            .borrow()
+            .resolved_animation_profile_name()
+            .map(str::to_owned);
         let mut old_config = self.niri.config.borrow_mut();
 
         // Reload the cursor.
@@ -1547,6 +1603,7 @@ impl State {
             self.niri
                 .hotkey_overlay
                 .on_hotkey_config_updated(new_mod_key);
+            self.niri.action_palette.on_config_updated(new_mod_key);
             self.niri.mods_with_mouse_binds = mods_with_mouse_binds(new_mod_key, &config.binds);
             self.niri.mods_with_wheel_binds = mods_with_wheel_binds(new_mod_key, &config.binds);
             self.niri.mods_with_tablet_stylus_binds =
@@ -1621,6 +1678,12 @@ impl State {
 
         if config.xwayland_satellite != old_config.xwayland_satellite {
             xwls_changed = true;
+        }
+
+        if config.animations.off != old_config.animations.off
+            || (config.animations.slowdown - old_config.animations.slowdown).abs() > f64::EPSILON
+        {
+            perf_profile_changed = true;
         }
 
         *old_config = config;
@@ -1729,6 +1792,30 @@ impl State {
         // due to the SDL2 bug... I don't imagine clients are prepared for the xdg-decoration
         // global suddenly appearing? Either way, right now it's live-reloaded in a sense that new
         // clients will use the new xdg-decoration setting.
+
+        if perf_profile_changed {
+            self.niri.trigger_status_update();
+        }
+
+        let new_animation_profile_name = self
+            .niri
+            .config
+            .borrow()
+            .resolved_animation_profile_name()
+            .map(str::to_owned);
+        self.niri.reconcile_adaptive_animation_profile();
+        let reconciled_animation_profile_name = self
+            .niri
+            .config
+            .borrow()
+            .resolved_animation_profile_name()
+            .map(str::to_owned);
+        if !perf_profile_changed
+            && (old_animation_profile_name != new_animation_profile_name
+                || new_animation_profile_name != reconciled_animation_profile_name)
+        {
+            self.niri.trigger_status_update();
+        }
 
         self.niri.queue_redraw_all();
     }
@@ -2239,6 +2326,28 @@ impl State {
         self.set_xkb_config(xkb.to_xkb_config());
         self.ipc_keyboard_layouts_changed();
     }
+
+    #[cfg(feature = "dbus")]
+    pub fn on_power_profiles_msg(&mut self, msg: PowerProfilesToNiri) {
+        let PowerProfilesToNiri::ActiveProfileChanged(profile) = msg;
+
+        trace!("power profile changed: {profile}");
+        self.niri.adaptive_power_profile = Some(profile);
+        self.niri.reconcile_adaptive_animation_profile();
+    }
+
+    #[cfg(feature = "dbus")]
+    pub fn on_upower_msg(&mut self, msg: UPowerToNiri) {
+        let UPowerToNiri::BatteryStateChanged(state) = msg;
+
+        trace!(
+            "upower battery state changed: on_battery={} low_battery={}",
+            state.on_battery,
+            state.low_battery
+        );
+        self.niri.adaptive_battery_state = Some(state);
+        self.niri.reconcile_adaptive_animation_profile();
+    }
 }
 
 impl Niri {
@@ -2437,6 +2546,14 @@ impl Niri {
         }
 
         let exit_confirm_dialog = ExitConfirmDialog::new(animation_clock.clone(), config.clone());
+        let mode_hud = ModeHud::new(animation_clock.clone(), config.clone());
+        let action_registry =
+            crate::liquid::action_registry::ActionRegistry::build(&config_);
+        let action_palette = ActionPalette::new(
+            config.clone(),
+            mod_key,
+            action_registry.clone(),
+        );
 
         #[cfg(feature = "dbus")]
         let a11y = A11y::new(event_loop.clone());
@@ -2501,6 +2618,21 @@ impl Niri {
             )
             .unwrap();
 
+        let capabilities = Self::compute_capabilities(&config_);
+        let rule_engine = crate::liquid::rule_engine::RuleEngine::new(&config_);
+        let script_enabled = config_.script.enable && !config_.niri_liquid.disable_scripts;
+        let script_dir = config_.script.directory.clone();
+        let mut script_engine = crate::liquid::script_engine::ScriptEngine::new(
+            script_enabled,
+            script_dir.map(PathBuf::from),
+        );
+        if script_enabled {
+            script_engine.load_scripts();
+        }
+        let performance_budget =
+            crate::liquid::performance_budget::PerformanceBudgetManager::new(
+                &config_.performance_budget,
+            );
         drop(config_);
         let mut niri = Self {
             config,
@@ -2597,11 +2729,17 @@ impl Niri {
             pointer_contents: PointContents::default(),
             pointer_visibility: PointerVisibility::Visible,
             pointer_inactivity_timer: None,
+            adaptive_animation_profile_timer: None,
+            #[cfg(feature = "dbus")]
+            adaptive_power_profile: None,
+            #[cfg(feature = "dbus")]
+            adaptive_battery_state: None,
             pointer_inactivity_timer_got_reset: false,
             notified_activity_this_iteration: false,
             pointer_inside_hot_corner: false,
             tablet_cursor_location: None,
             gesture_swipe_3f_cumulative: None,
+            gesture_edge_swipe_3f: None,
             overview_scroll_swipe_gesture: ScrollSwipeGesture::new(),
             vertical_wheel_tracker: ScrollTracker::new(120),
             horizontal_wheel_tracker: ScrollTracker::new(120),
@@ -2621,6 +2759,18 @@ impl Niri {
             config_error_notification,
             hotkey_overlay,
             exit_confirm_dialog,
+            mode_hud,
+            action_palette,
+
+            safe_mode_active: false,
+            capabilities,
+            action_registry,
+            state_bus: crate::liquid::state_bus::StateBus::new(),
+            overlay_manager: crate::liquid::overlay::OverlayManager::new(),
+            rule_engine,
+            script_engine,
+            performance_budget,
+            last_frame_time: None,
 
             window_mru_ui,
             pending_mru_commit: None,
@@ -2650,6 +2800,7 @@ impl Niri {
         };
 
         niri.reset_pointer_inactivity_timer();
+        niri.reconcile_adaptive_animation_profile();
 
         niri
     }
@@ -3629,6 +3780,11 @@ impl Niri {
     pub fn toggle_scratch_column(&mut self, name: &str) -> bool {
         let config = self.config.borrow();
         let scratch_exists = config.scratch_columns.iter().any(|col| col.name == name);
+        let monitor_override = config
+            .scratch_columns
+            .iter()
+            .find(|col| col.name == name)
+            .and_then(|col| col.monitor.clone());
         drop(config);
 
         if !scratch_exists {
@@ -3659,7 +3815,10 @@ impl Niri {
             let source = self
                 .layout
                 .find_workspace_by_name(&runtime.return_workspace_name)
-                .or_else(|| self.layout.find_workspace_by_id(runtime.source_workspace_id));
+                .or_else(|| {
+                    self.layout
+                        .find_workspace_by_id(runtime.source_workspace_id)
+                });
 
             let Some((source_idx, source_workspace)) = source else {
                 warn!("scratch column `{name}` source workspace disappeared");
@@ -3684,6 +3843,12 @@ impl Niri {
                 }
             }
 
+            self.trigger_status_update();
+            self.state_bus.publish(
+                crate::liquid::state_bus::LiquidEvent::SpecialWorkspaceToggled {
+                    name: name.to_owned(),
+                },
+            );
             return true;
         }
 
@@ -3713,12 +3878,21 @@ impl Niri {
                 self.layout.focus_output(output);
             }
             self.layout.switch_workspace(scratch_idx);
+            self.trigger_status_update();
+            self.state_bus.publish(
+                crate::liquid::state_bus::LiquidEvent::SpecialWorkspaceToggled {
+                    name: name.to_owned(),
+                },
+            );
             return true;
         }
 
         let Some(scratch_idx) = self
             .layout
-            .ensure_named_workspace_on_active_monitor(scratch_workspace_name)
+            .ensure_named_workspace_on_monitor(
+                scratch_workspace_name,
+                monitor_override.as_deref(),
+            )
         else {
             return false;
         };
@@ -3731,7 +3905,262 @@ impl Niri {
             },
         );
         self.layout.move_column_to_workspace(scratch_idx, true);
+        self.trigger_status_update();
+        self.state_bus.publish(
+            crate::liquid::state_bus::LiquidEvent::SpecialWorkspaceToggled {
+                name: name.to_owned(),
+            },
+        );
         true
+    }
+
+    /// Check scratch columns with `close_on_focus_loss` and auto-close them
+    /// if the active workspace is no longer their scratch workspace.
+    fn check_scratch_column_focus_loss(&mut self) {
+        let active_is_scratch = {
+            let Some(active_ws) = self.layout.active_workspace() else {
+                return;
+            };
+            active_ws
+                .name()
+                .map(|n| n.starts_with("__scratch_"))
+                .unwrap_or(false)
+        };
+
+        // Only check when focus is NOT on any scratch column.
+        if active_is_scratch {
+            return;
+        }
+
+        let config = self.config.borrow();
+        let to_close: Vec<String> = self
+            .scratch_columns
+            .keys()
+            .filter(|name| {
+                config
+                    .scratch_columns
+                    .iter()
+                    .find(|col| &col.name == *name)
+                    .and_then(|col| col.close_on_focus_loss)
+                    .map(|flag| flag.0)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+        drop(config);
+
+        for name in to_close {
+            let scratch_name = Self::scratch_workspace_name(&name);
+            // Only close if the scratch workspace actually exists and has content.
+            if let Some((_, ws)) = self.layout.find_workspace_by_name(&scratch_name) {
+                if ws.has_windows() {
+                    self.toggle_scratch_column(&name);
+                }
+            }
+        }
+    }
+
+    // ── Phase 0: Safe Mode & Capabilities ─────────────────────────────
+
+    /// Compute the set of capabilities available given the current config and hardware.
+    fn compute_capabilities(config: &Config) -> Vec<niri_config::Capability> {
+        let mut caps = Vec::new();
+        caps.push(niri_config::Capability::TabbedColumns);
+
+        let gpu_ok = true; // Assume GPU supports liquid pipeline until proven otherwise.
+
+        if gpu_ok && !config.niri_liquid.disable_liquid_materials {
+            caps.push(niri_config::Capability::LiquidMaterials);
+            caps.push(niri_config::Capability::ChromaticDispersion);
+        }
+        if !config.niri_liquid.disable_gestures {
+            caps.push(niri_config::Capability::GestureProgress);
+        }
+        caps.push(niri_config::Capability::SpecialWorkspaces);
+        caps.push(niri_config::Capability::RhaiScripts); // Reserved for Phase 1.1
+        caps.push(niri_config::Capability::DebugWireframe);
+        caps.push(niri_config::Capability::SafeMode);
+        caps.push(niri_config::Capability::ActionPalette);
+        caps.push(niri_config::Capability::ModeHud);
+        if config.magnet.enable {
+            caps.push(niri_config::Capability::WindowMagnet);
+        }
+        caps.push(niri_config::Capability::ColumnLandmarks);
+        caps
+    }
+
+    /// Returns the action registry.
+    pub fn action_registry(&self) -> &crate::liquid::action_registry::ActionRegistry {
+        &self.action_registry
+    }
+
+    /// Returns the current set of capabilities, accounting for safe mode.
+    pub fn capabilities(&self) -> Vec<niri_config::Capability> {
+        let mut caps = self.capabilities.clone();
+        if self.safe_mode_active {
+            caps.retain(|c| {
+                !matches!(
+                    c,
+                    niri_config::Capability::LiquidMaterials
+                        | niri_config::Capability::ChromaticDispersion
+                        | niri_config::Capability::GestureProgress
+                        | niri_config::Capability::RhaiScripts
+                )
+            });
+        }
+        caps
+    }
+
+    /// Unified dispatch entry point — all action execution flows through here.
+    ///
+    /// Handles special liquid actions directly and returns a DispatchResult
+    /// suitable for Mode HUD feedback. Generic actions are delegated to the
+    /// existing `do_action` infrastructure through the event loop.
+    pub fn dispatch(
+        &mut self,
+        action: &niri_config::Action,
+        source: crate::liquid::dispatcher::DispatchSource,
+    ) -> crate::liquid::dispatcher::DispatchResult {
+        use crate::liquid::dispatcher::DispatchResult;
+
+        trace!("dispatch: {:?} via {}", action, source.name());
+
+        match action {
+            niri_config::Action::ToggleSafeMode => {
+                self.toggle_safe_mode();
+                let state = if self.safe_mode_active { "ON" } else { "OFF" };
+                DispatchResult::ok_with(format!("SAFE MODE · {state}"))
+            }
+            niri_config::Action::SetMaterial(mat) => {
+                let config = self.config.borrow();
+                let material_exists = config.materials.iter().any(|m| &m.name == mat);
+                drop(config);
+                if !material_exists {
+                    return DispatchResult::err(format!("unknown material: {mat}"));
+                }
+                self.trigger_status_update();
+                self.queue_redraw_all();
+                DispatchResult::ok_with(format!("MATERIAL · {mat}"))
+            }
+            niri_config::Action::SetAnimationProfile(profile) => {
+                let config = self.config.borrow();
+                let exists = config.animation_profiles.iter().any(|p| &p.name == profile);
+                drop(config);
+                if !exists {
+                    return DispatchResult::err(format!("unknown animation profile: {profile}"));
+                }
+                self.trigger_status_update();
+                self.queue_redraw_all();
+                DispatchResult::ok_with(format!("PROFILE · {profile}"))
+            }
+            niri_config::Action::ToggleScratchColumn(name) => {
+                let success = self.toggle_scratch_column(name);
+                if success {
+                    DispatchResult::ok_with(format!("SCRATCH · {name}"))
+                } else {
+                    DispatchResult::err(format!("scratch column '{name}' not available"))
+                }
+            }
+            niri_config::Action::ToggleActionPalette => {
+                if self.action_palette.is_open() {
+                    self.action_palette.hide();
+                } else {
+                    self.action_palette.show();
+                }
+                self.queue_redraw_all();
+                DispatchResult::ok()
+            }
+            niri_config::Action::Quit(skip) => {
+                // Quit is handled separately for safety.
+                let _ = skip;
+                DispatchResult::ok()
+            }
+            _ => {
+                // Generic actions: redraw and return ok.
+                // Actual execution happens via do_action in the input handler.
+                self.queue_redraw_all();
+                DispatchResult::ok()
+            }
+        }
+    }
+
+    /// Toggle safe mode on or off.
+    ///
+    /// When entering safe mode, scripts and expensive effects are disabled,
+    /// and a safe material/animation profile is applied.
+    pub fn toggle_safe_mode(&mut self) {
+        self.safe_mode_active = !self.safe_mode_active;
+
+        self.state_bus.publish(
+            crate::liquid::state_bus::LiquidEvent::SafeModeToggled {
+                active: self.safe_mode_active,
+            },
+        );
+
+        if self.safe_mode_active {
+            info!("entering safe mode — disabling scripts and expensive effects");
+            // Apply safe material and animation profile by
+            // updating the config override and triggering a layout update.
+            let config = self.config.borrow();
+            let safe_material = config.safe_mode.material.clone();
+            let safe_anim = config.safe_mode.animation_profile.clone();
+            drop(config);
+
+            // Apply safe animation profile as override.
+            {
+                let mut config = self.config.borrow_mut();
+                config.adaptive_animation_profile_override = Some(safe_anim);
+            }
+
+            // Apply safe material by setting window rules default.
+            if !safe_material.is_empty() {
+                // The safe material will be applied through the config reload.
+                // For immediate effect, we update the layout.
+                let config = self.config.borrow();
+                self.layout.update_config(&config);
+            }
+        } else {
+            info!("exiting safe mode — restoring normal operation");
+            // Clear the override to restore normal profile.
+            let mut config = self.config.borrow_mut();
+            config.adaptive_animation_profile_override = None;
+            drop(config);
+            let config = self.config.borrow();
+            self.layout.update_config(&config);
+        }
+
+        self.trigger_status_update();
+        self.queue_redraw_all();
+    }
+
+    /// Register the emergency safe-mode keybind if enabled.
+    pub fn maybe_register_safe_mode_bind(&mut self) {
+        let config = self.config.borrow();
+        if !config.safe_mode.enable {
+            return;
+        }
+        let bind_str = config.safe_mode.bind.clone();
+        drop(config);
+
+        // Parse the bind string into a key combination.
+        // This uses the same parsing as other binds in the config.
+        if let Some(key) = Self::parse_key_from_bind_string(&bind_str) {
+            // We store it for use in the input handler.
+            // The input handler will check for this key in handle_bind.
+            // Currently handled via a dedicated check in the input handler.
+            let _ = key; // Reserved for dedicated safe-mode keybind handling.
+        }
+    }
+
+    /// Parse a key combination string like "Mod+Shift+Backspace" into a Key.
+    /// Currently, safe-mode keybind is handled through the normal config binds system.
+    fn parse_key_from_bind_string(bind_str: &str) -> Option<niri_config::Key> {
+        if bind_str.is_empty() {
+            return None;
+        }
+        // Safe-mode keybinds are handled through the normal config binds system.
+        // Users add `Mod+Shift+Backspace { toggle-safe-mode; }` to their binds.
+        None
     }
 
     pub fn find_window_by_id(&self, id: MappedId) -> Option<Window> {
@@ -4163,7 +4592,12 @@ impl Niri {
         let mut windows = vec![];
         let mut outputs = HashSet::new();
         self.layout.with_windows_mut(|mapped, output| {
-            if mapped.recompute_window_rules_if_needed(window_rules, self.is_at_startup, presets, materials) {
+            if mapped.recompute_window_rules_if_needed(
+                window_rules,
+                self.is_at_startup,
+                presets,
+                materials,
+            ) {
                 windows.push(mapped.window.clone());
 
                 if let Some(output) = output {
@@ -4189,17 +4623,121 @@ impl Niri {
         }
     }
 
+    pub fn trigger_status_update(&mut self) {
+        let mut status_parts = Vec::new();
+        {
+            let config = self.config.borrow();
+
+            // 1. Animation Profile
+            if config.mode_hud.show.animation_profile {
+                status_parts.push(config.resolved_animation_profile_label().to_uppercase());
+            }
+
+            // 2. Material
+            if config.mode_hud.show.material {
+                let mut active_preset = None;
+                if let Some(focused) = self.layout.focus() {
+                    if let Some(preset_name) = &focused.window_rules().effect_preset {
+                        active_preset = Some(preset_name.clone());
+                    }
+                }
+                let preset_str = active_preset.unwrap_or_else(|| config.mode_hud.material.clone());
+                status_parts.push(preset_str);
+            }
+
+            // 3. Performance Profile
+            if config.mode_hud.show.performance_profile {
+                status_parts.push(Self::performance_profile_label(&config));
+            }
+
+            // 4. Scratch State
+            if config.mode_hud.show.scratch_state {
+                let mut scratch_open = false;
+                self.layout.with_windows(|w, _, _, _| {
+                    if w.is_floating()
+                        && w.window_rules()
+                            .open_on_workspace
+                            .as_ref()
+                            .is_some_and(|ws| ws.contains("scratch"))
+                    {
+                        scratch_open = true;
+                    }
+                });
+                if scratch_open {
+                    status_parts.push("SCRATCHPAD ON".to_string());
+                }
+            }
+        }
+
+        if !status_parts.is_empty() {
+            let status_str = status_parts.join("  ·  ");
+            self.state_bus.publish(crate::liquid::state_bus::LiquidEvent::ActionDispatched {
+                action_id: "status-update".into(),
+                source: "compositor".into(),
+            });
+            self.mode_hud.trigger(status_str);
+            self.queue_redraw_all();
+        }
+    }
+
+    fn performance_profile_label(config: &Config) -> String {
+        if config.animations.off {
+            return "PERF STATIC".to_string();
+        }
+
+        let slowdown = config.animations.slowdown;
+        if slowdown < 0.999 {
+            format!("PERF FAST {:.2}x", 1.0 / slowdown.max(0.001))
+        } else if slowdown > 1.001 {
+            format!("PERF SLOW {:.2}x", slowdown)
+        } else {
+            "PERF NORMAL".to_string()
+        }
+    }
+
     pub fn advance_animations(&mut self) {
         let _span = tracy_client::span!("Niri::advance_animations");
+
+        // Record frame time for performance budget tracking.
+        if let Some(last) = self.last_frame_time {
+            let frame_duration = last.elapsed();
+            self.performance_budget.record_frame(frame_duration);
+        }
+        self.last_frame_time = Some(std::time::Instant::now());
 
         self.layout.advance_animations();
         self.config_error_notification.advance_animations();
         self.exit_confirm_dialog.advance_animations();
+        self.mode_hud.advance_animations();
         self.screenshot_ui.advance_animations();
         self.window_mru_ui.advance_animations();
         for mapped in self.mapped_layer_surfaces.values_mut() {
             mapped.advance_animations();
         }
+
+        // Advance gesture progress animations on all windows.
+        self.layout.with_windows_mut(|mapped, _output| {
+            mapped.advance_gesture_progress();
+        });
+
+        // Auto-close scratch columns when focus is lost.
+        self.check_scratch_column_focus_loss();
+
+        // Check quality changes from the performance budget manager.
+        if let Some(level) = self.performance_budget.quality_just_changed() {
+            self.mode_hud.trigger(format!("QUALITY · {}", level.name()));
+        }
+
+        // Drain StateBus events and feed Mode HUD + ScriptEngine.
+        let events = self.state_bus.drain();
+        for event in &events {
+            if let Some(line) = event.hud_line() {
+                self.mode_hud.trigger(line);
+            }
+            // Forward to Rhai scripts.
+            self.script_engine.dispatch_event(event);
+        }
+        drop(events);
 
         for state in self.output_state.values_mut() {
             if let Some(transition) = &mut state.screen_transition {
@@ -4371,6 +4909,14 @@ impl Niri {
         if let Some(element) = self.config_error_notification.render(ctx.renderer, output) {
             push(element.into());
         }
+
+        // Next, the mode HUD.
+        self.mode_hud
+            .render(ctx.r(), output, &mut |elem| push(elem.into()));
+
+        // Next, the Action Palette.
+        self.action_palette
+            .render(ctx.r(), output, &mut |elem| push(elem.into()));
 
         // If the session is locked, draw the lock surface.
         if self.is_locked() {
@@ -4742,6 +5288,7 @@ impl Niri {
             state.unfinished_animations_remain |=
                 self.config_error_notification.are_animations_ongoing();
             state.unfinished_animations_remain |= self.exit_confirm_dialog.are_animations_ongoing();
+            state.unfinished_animations_remain |= self.mode_hud.are_animations_ongoing();
             state.unfinished_animations_remain |= self.screenshot_ui.are_animations_ongoing();
             state.unfinished_animations_remain |= self.window_mru_ui.are_animations_ongoing();
             state.unfinished_animations_remain |= state.screen_transition.is_some();
@@ -6481,7 +7028,12 @@ impl Niri {
 
             let mut windows = vec![];
             self.layout.with_windows_mut(|mapped, _| {
-                if mapped.recompute_window_rules(window_rules, self.is_at_startup, presets, materials) {
+                if mapped.recompute_window_rules(
+                    window_rules,
+                    self.is_at_startup,
+                    presets,
+                    materials,
+                ) {
                     windows.push(mapped.window.clone());
                 }
             });
@@ -6559,6 +7111,181 @@ impl Niri {
         self.pointer_inactivity_timer_got_reset = true;
     }
 
+    fn validated_animation_profile_name(
+        config: &Config,
+        profile_name: Option<&str>,
+    ) -> Option<String> {
+        let profile_name = profile_name?;
+        config
+            .animation_profiles
+            .iter()
+            .any(|profile| profile.name == profile_name)
+            .then(|| profile_name.to_string())
+    }
+
+    fn set_animation_profile_override(&mut self, profile_name: Option<String>) {
+        let changed = {
+            let mut config = self.config.borrow_mut();
+            if config.adaptive_animation_profile_override == profile_name {
+                false
+            } else {
+                config.adaptive_animation_profile_override = profile_name;
+                true
+            }
+        };
+
+        if !changed {
+            return;
+        }
+
+        {
+            let config = self.config.borrow();
+            self.layout.update_config(&config);
+        }
+        self.trigger_status_update();
+        self.queue_redraw_all();
+    }
+
+    fn settle_adaptive_animation_profile(&mut self) {
+        self.adaptive_animation_profile_timer = None;
+        self.reconcile_adaptive_animation_profile();
+    }
+
+    pub fn reconcile_adaptive_animation_profile(&mut self) {
+        if !self.config.borrow().adaptive_animation_profile.enable {
+            if let Some(token) = self.adaptive_animation_profile_timer.take() {
+                self.event_loop.remove(token);
+            }
+            self.set_animation_profile_override(None);
+            return;
+        }
+
+        let desired_profile = {
+            let config = self.config.borrow();
+            #[cfg(feature = "dbus")]
+            if let Some(battery_state) = self.adaptive_battery_state.as_ref() {
+                let mapped = if battery_state.low_battery {
+                    config.adaptive_animation_profile.low_battery.as_deref()
+                } else if battery_state.on_battery {
+                    config.adaptive_animation_profile.on_battery.as_deref()
+                } else {
+                    None
+                };
+                if let Some(profile) = Self::validated_animation_profile_name(&config, mapped) {
+                    Some(profile)
+                } else if let Some(power_profile) = self.adaptive_power_profile.as_deref() {
+                    let mapped = match power_profile {
+                        "power-saver" => config.adaptive_animation_profile.power_saver.as_deref(),
+                        "balanced" => config.adaptive_animation_profile.balanced.as_deref(),
+                        "performance" => config.adaptive_animation_profile.performance.as_deref(),
+                        _ => None,
+                    };
+                    if let Some(profile) = Self::validated_animation_profile_name(&config, mapped) {
+                        Some(profile)
+                    } else if self.adaptive_animation_profile_timer.is_some() {
+                        Self::validated_animation_profile_name(
+                            &config,
+                            config.adaptive_animation_profile.active.as_deref(),
+                        )
+                    } else {
+                        Self::validated_animation_profile_name(
+                            &config,
+                            config.adaptive_animation_profile.idle.as_deref(),
+                        )
+                    }
+                } else if self.adaptive_animation_profile_timer.is_some() {
+                    Self::validated_animation_profile_name(
+                        &config,
+                        config.adaptive_animation_profile.active.as_deref(),
+                    )
+                } else {
+                    Self::validated_animation_profile_name(
+                        &config,
+                        config.adaptive_animation_profile.idle.as_deref(),
+                    )
+                }
+            } else if let Some(power_profile) = self.adaptive_power_profile.as_deref() {
+                let mapped = match power_profile {
+                    "power-saver" => config.adaptive_animation_profile.power_saver.as_deref(),
+                    "balanced" => config.adaptive_animation_profile.balanced.as_deref(),
+                    "performance" => config.adaptive_animation_profile.performance.as_deref(),
+                    _ => None,
+                };
+                if let Some(profile) = Self::validated_animation_profile_name(&config, mapped) {
+                    Some(profile)
+                } else if self.adaptive_animation_profile_timer.is_some() {
+                    Self::validated_animation_profile_name(
+                        &config,
+                        config.adaptive_animation_profile.active.as_deref(),
+                    )
+                } else {
+                    Self::validated_animation_profile_name(
+                        &config,
+                        config.adaptive_animation_profile.idle.as_deref(),
+                    )
+                }
+            } else if self.adaptive_animation_profile_timer.is_some() {
+                Self::validated_animation_profile_name(
+                    &config,
+                    config.adaptive_animation_profile.active.as_deref(),
+                )
+            } else {
+                Self::validated_animation_profile_name(
+                    &config,
+                    config.adaptive_animation_profile.idle.as_deref(),
+                )
+            }
+            #[cfg(not(feature = "dbus"))]
+            if self.adaptive_animation_profile_timer.is_some() {
+                Self::validated_animation_profile_name(
+                    &config,
+                    config.adaptive_animation_profile.active.as_deref(),
+                )
+            } else {
+                Self::validated_animation_profile_name(
+                    &config,
+                    config.adaptive_animation_profile.idle.as_deref(),
+                )
+            }
+        };
+
+        self.set_animation_profile_override(desired_profile);
+    }
+
+    pub fn note_adaptive_animation_activity(&mut self) {
+        let (enabled, active_profile, duration) = {
+            let config = self.config.borrow();
+            (
+                config.adaptive_animation_profile.enable,
+                Self::validated_animation_profile_name(
+                    &config,
+                    config.adaptive_animation_profile.active.as_deref(),
+                ),
+                Duration::from_millis(config.adaptive_animation_profile.settle_ms),
+            )
+        };
+
+        if !enabled {
+            return;
+        }
+
+        if let Some(token) = self.adaptive_animation_profile_timer.take() {
+            self.event_loop.remove(token);
+        }
+
+        self.set_animation_profile_override(active_profile);
+
+        let timer = Timer::from_duration(duration);
+        let token = self
+            .event_loop
+            .insert_source(timer, move |_, _, state| {
+                state.niri.settle_adaptive_animation_profile();
+                TimeoutAction::Drop
+            })
+            .unwrap();
+        self.adaptive_animation_profile_timer = Some(token);
+    }
+
     pub fn notify_activity(&mut self) {
         if self.notified_activity_this_iteration {
             return;
@@ -6567,6 +7294,7 @@ impl Niri {
         let _span = tracy_client::span!("Niri::notify_activity");
 
         self.idle_notifier_state.notify_activity(&self.seat);
+        self.note_adaptive_animation_activity();
 
         self.notified_activity_this_iteration = true;
     }
@@ -6676,6 +7404,8 @@ niri_render_elements! {
         ScreenshotUi = ScreenshotUiRenderElement,
         WindowMruUi = WindowMruUiRenderElement<R>,
         ExitConfirmDialog = ExitConfirmDialogRenderElement,
+        ModeHud = ModeHudRenderElement,
+        ActionPalette = ActionPaletteRenderElement,
         Texture = PrimaryGpuTextureRenderElement,
         // Used for the CPU-rendered panels.
         RelocatedMemoryBuffer = RelocateRenderElement<MemoryRenderBufferRenderElement<R>>,

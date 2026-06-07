@@ -246,22 +246,20 @@ impl BackgroundEffect {
             );
         } else {
             // Render non-xray effect.
-            let elem = self
-                .nonxray
-                .render(
-                    ns,
-                    params,
-                    blur_options,
-                    noise,
-                    saturation,
-                    self.options.liquid,
-                    refraction,
-                    edge_highlight,
-                    specular,
-                    chromatic_aberration,
-                    bloom,
-                    time,
-                );
+            let elem = self.nonxray.render(
+                ns,
+                params,
+                blur_options,
+                noise,
+                saturation,
+                self.options.liquid,
+                refraction,
+                edge_highlight,
+                specular,
+                chromatic_aberration,
+                bloom,
+                time,
+            );
             push(elem.into());
         }
     }

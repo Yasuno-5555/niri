@@ -3362,7 +3362,10 @@ fn ensure_named_workspace_on_active_monitor_reuses_existing_workspace() {
         unreachable!();
     };
     assert_eq!(monitors[0].workspaces.len(), initial_len);
-    assert_eq!(monitors[0].workspaces[0].name().map(String::as_str), Some("ws7"));
+    assert_eq!(
+        monitors[0].workspaces[0].name().map(String::as_str),
+        Some("ws7")
+    );
     layout.verify_invariants();
 }
 
