@@ -393,6 +393,7 @@ pub struct Options {
     pub gestures: niri_config::Gestures,
     pub overview: niri_config::Overview,
     pub blur: niri_config::Blur,
+    pub animation_presets: Vec<niri_config::AnimationPreset>,
     // Debug flags.
     pub disable_resize_throttling: bool,
     pub disable_transactions: bool,
@@ -646,7 +647,15 @@ impl HitType {
     }
 }
 
-fn resolve_animation_preset(name: &str) -> Option<niri_config::animations::Animation> {
+fn resolve_animation_preset(
+    name: &str,
+    presets: &[niri_config::AnimationPreset],
+) -> Option<niri_config::animations::Animation> {
+    // Check user-defined presets first (config.kdl takes priority)
+    if let Some(preset) = presets.iter().find(|p| p.name == name) {
+        return Some(preset.animation.clone());
+    }
+    // Fall back to built-in hardcoded presets
     use niri_config::animations::{Kind, EasingParams, SpringParams, Curve};
     match name {
         "liquid-pop" => Some(niri_config::animations::Animation {
@@ -878,22 +887,22 @@ impl Options {
         if let Some(profile_name) = &config.active_animation_profile {
             if let Some(profile) = config.animation_profiles.iter().find(|p| &p.name == profile_name) {
                 if let Some(preset_name) = &profile.window_open {
-                    if let Some(anim) = resolve_animation_preset(preset_name) {
+                    if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets) {
                         animations.window_open.anim = anim;
                     }
                 }
                 if let Some(preset_name) = &profile.window_close {
-                    if let Some(anim) = resolve_animation_preset(preset_name) {
+                    if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets) {
                         animations.window_close.anim = anim;
                     }
                 }
                 if let Some(preset_name) = &profile.workspace {
-                    if let Some(anim) = resolve_animation_preset(preset_name) {
+                    if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets) {
                         animations.workspace_switch.0 = anim;
                     }
                 }
                 if let Some(preset_name) = &profile.overview_open {
-                    if let Some(anim) = resolve_animation_preset(preset_name) {
+                    if let Some(anim) = resolve_animation_preset(preset_name, &config.animation_presets) {
                         animations.overview_open_close.0 = anim;
                     }
                 }
@@ -906,6 +915,7 @@ impl Options {
             gestures: config.gestures,
             overview: config.overview,
             blur: config.blur,
+            animation_presets: config.animation_presets.clone(),
             disable_resize_throttling: config.debug.disable_resize_throttling,
             disable_transactions: config.debug.disable_transactions,
             deactivate_unfocused_windows: config.debug.deactivate_unfocused_windows,

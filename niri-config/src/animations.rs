@@ -539,6 +539,48 @@ impl Animation {
         node: &knuffel::ast::SpannedNode<S>,
         ctx: &mut knuffel::decode::Context<S>,
         default: Self,
+        process_children: impl FnMut(
+            &knuffel::ast::SpannedNode<S>,
+            &mut knuffel::decode::Context<S>,
+        ) -> Result<bool, DecodeError<S>>,
+    ) -> Result<Self, DecodeError<S>> {
+        expect_only_children(node, ctx);
+        Self::decode_children_impl(node, ctx, default, process_children)
+    }
+
+    /// Like `decode_node` but does not error on node arguments.
+    /// Used for `animation-preset` nodes which have a name argument.
+    pub(crate) fn decode_node_allow_args<S: knuffel::traits::ErrorSpan>(
+        node: &knuffel::ast::SpannedNode<S>,
+        ctx: &mut knuffel::decode::Context<S>,
+        default: Self,
+        process_children: impl FnMut(
+            &knuffel::ast::SpannedNode<S>,
+            &mut knuffel::decode::Context<S>,
+        ) -> Result<bool, DecodeError<S>>,
+    ) -> Result<Self, DecodeError<S>> {
+        if let Some(type_name) = &node.type_name {
+            ctx.emit_error(DecodeError::unexpected(
+                type_name,
+                "type name",
+                "no type name expected for this node",
+            ));
+        }
+        for (name, _) in &node.properties {
+            ctx.emit_error(DecodeError::unexpected(
+                name,
+                "property",
+                format!("unexpected property `{}`", name.escape_default()),
+            ));
+        }
+        // Skip argument check — animation-preset has a name argument.
+        Self::decode_children_impl(node, ctx, default, process_children)
+    }
+
+    fn decode_children_impl<S: knuffel::traits::ErrorSpan>(
+        node: &knuffel::ast::SpannedNode<S>,
+        ctx: &mut knuffel::decode::Context<S>,
+        default: Self,
         mut process_children: impl FnMut(
             &knuffel::ast::SpannedNode<S>,
             &mut knuffel::decode::Context<S>,
@@ -549,8 +591,6 @@ impl Animation {
             duration_ms: Option<u32>,
             curve: Option<Curve>,
         }
-
-        expect_only_children(node, ctx);
 
         let mut off = false;
         let mut easing_params = OptionalEasingParams::default();
@@ -749,6 +789,60 @@ impl Animation {
         };
 
         Ok(Self { off, kind })
+    }
+}
+
+/// User-defined animation preset, parsed from `animation-preset` nodes in config.kdl.
+///
+/// ```kdl
+/// animation-preset "my-pop" {
+///     spring damping-ratio=0.55 stiffness=800 epsilon=0.0001
+/// }
+/// animation-preset "my-close" {
+///     easing duration-ms=200 curve="ease-out-cubic"
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnimationPreset {
+    pub name: String,
+    pub animation: Animation,
+}
+
+impl<S> knuffel::Decode<S> for AnimationPreset
+where
+    S: knuffel::traits::ErrorSpan,
+{
+    fn decode_node(
+        node: &knuffel::ast::SpannedNode<S>,
+        ctx: &mut knuffel::decode::Context<S>,
+    ) -> Result<Self, DecodeError<S>> {
+        let mut iter = node.arguments.iter();
+        let val = iter
+            .next()
+            .ok_or_else(|| DecodeError::missing(node, "argument `name` is required"))?;
+        let name: String = knuffel::traits::DecodeScalar::decode(val, ctx)?;
+
+        if let Some(extra) = iter.next() {
+            ctx.emit_error(DecodeError::unexpected(
+                &extra.literal,
+                "argument",
+                "unexpected argument",
+            ));
+        }
+
+        let default_anim = Animation {
+            off: false,
+            kind: Kind::Spring(SpringParams {
+                damping_ratio: 0.7,
+                stiffness: 800,
+                epsilon: 0.0001,
+            }),
+        };
+
+        let animation =
+            Animation::decode_node_allow_args(node, ctx, default_anim, |_, _| Ok(false))?;
+
+        Ok(Self { name, animation })
     }
 }
 
