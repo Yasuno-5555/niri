@@ -2547,13 +2547,8 @@ impl Niri {
 
         let exit_confirm_dialog = ExitConfirmDialog::new(animation_clock.clone(), config.clone());
         let mode_hud = ModeHud::new(animation_clock.clone(), config.clone());
-        let action_registry =
-            crate::liquid::action_registry::ActionRegistry::build(&config_);
-        let action_palette = ActionPalette::new(
-            config.clone(),
-            mod_key,
-            action_registry.clone(),
-        );
+        let action_registry = crate::liquid::action_registry::ActionRegistry::build(&config_);
+        let action_palette = ActionPalette::new(config.clone(), mod_key, action_registry.clone());
 
         #[cfg(feature = "dbus")]
         let a11y = A11y::new(event_loop.clone());
@@ -2629,10 +2624,9 @@ impl Niri {
         if script_enabled {
             script_engine.load_scripts();
         }
-        let performance_budget =
-            crate::liquid::performance_budget::PerformanceBudgetManager::new(
-                &config_.performance_budget,
-            );
+        let performance_budget = crate::liquid::performance_budget::PerformanceBudgetManager::new(
+            &config_.performance_budget,
+        );
         drop(config_);
         let mut niri = Self {
             config,
@@ -3889,10 +3883,7 @@ impl Niri {
 
         let Some(scratch_idx) = self
             .layout
-            .ensure_named_workspace_on_monitor(
-                scratch_workspace_name,
-                monitor_override.as_deref(),
-            )
+            .ensure_named_workspace_on_monitor(scratch_workspace_name, monitor_override.as_deref())
         else {
             return false;
         };
@@ -4098,11 +4089,8 @@ impl Niri {
         }
         self.safe_mode_active = true;
 
-        self.state_bus.publish(
-            crate::liquid::state_bus::LiquidEvent::SafeModeToggled {
-                active: true,
-            },
-        );
+        self.state_bus
+            .publish(crate::liquid::state_bus::LiquidEvent::SafeModeToggled { active: true });
 
         info!("entering safe mode at startup — disabling scripts and expensive effects");
 
@@ -4134,11 +4122,10 @@ impl Niri {
     pub fn toggle_safe_mode(&mut self) {
         self.safe_mode_active = !self.safe_mode_active;
 
-        self.state_bus.publish(
-            crate::liquid::state_bus::LiquidEvent::SafeModeToggled {
+        self.state_bus
+            .publish(crate::liquid::state_bus::LiquidEvent::SafeModeToggled {
                 active: self.safe_mode_active,
-            },
-        );
+            });
 
         if self.safe_mode_active {
             info!("entering safe mode — disabling scripts and expensive effects");
@@ -4714,10 +4701,11 @@ impl Niri {
 
         if !status_parts.is_empty() {
             let status_str = status_parts.join("  ·  ");
-            self.state_bus.publish(crate::liquid::state_bus::LiquidEvent::ActionDispatched {
-                action_id: "status-update".into(),
-                source: "compositor".into(),
-            });
+            self.state_bus
+                .publish(crate::liquid::state_bus::LiquidEvent::ActionDispatched {
+                    action_id: "status-update".into(),
+                    source: "compositor".into(),
+                });
             self.mode_hud.trigger(status_str);
             self.queue_redraw_all();
         }

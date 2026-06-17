@@ -59,11 +59,7 @@ pub struct ActionPalette {
 }
 
 impl ActionPalette {
-    pub fn new(
-        config: Rc<RefCell<Config>>,
-        mod_key: ModKey,
-        registry: ActionRegistry,
-    ) -> Self {
+    pub fn new(config: Rc<RefCell<Config>>, mod_key: ModKey, registry: ActionRegistry) -> Self {
         Self {
             is_open: false,
             query: String::new(),
@@ -357,9 +353,7 @@ fn populate_actions(
             .hotkey_overlay_title
             .as_ref()
             .and_then(|title| title.clone())
-            .or_else(|| {
-                action_id.and_then(|id| registry.find(id).map(|d| d.label.clone()))
-            })
+            .or_else(|| action_id.and_then(|id| registry.find(id).map(|d| d.label.clone())))
             .unwrap_or_else(|| strip_markup(&action_name(&bind.action)));
         push_action_item(&mut items, bind.action.clone(), display_name);
     }
@@ -367,10 +361,10 @@ fn populate_actions(
     // Add unbound actions from the registry.
     for desc in registry.all() {
         // Skip actions that are already listed via binds.
-        if items.iter().any(|item| {
-            action_to_registry_id(&item.action)
-                .is_some_and(|id| id == desc.id)
-        }) {
+        if items
+            .iter()
+            .any(|item| action_to_registry_id(&item.action).is_some_and(|id| id == desc.id))
+        {
             continue;
         }
         // Only include actions that have a corresponding Action variant.

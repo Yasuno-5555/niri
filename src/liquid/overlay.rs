@@ -86,8 +86,7 @@ impl OverlayManager {
 
     /// Check if any overlay captures keyboard input.
     pub fn is_input_captured(&self) -> bool {
-        self.topmost_visible()
-            .is_some_and(|o| o.captures_input())
+        self.topmost_visible().is_some_and(|o| o.captures_input())
     }
 
     /// Route a key event to the appropriate overlay.
@@ -144,10 +143,7 @@ impl OverlayManager {
     }
 
     fn topmost_visible_mut(&mut self) -> Option<&mut Box<dyn UiOverlay>> {
-        self.overlays
-            .iter_mut()
-            .filter(|o| o.visible())
-            .next()
+        self.overlays.iter_mut().filter(|o| o.visible()).next()
     }
 }
 

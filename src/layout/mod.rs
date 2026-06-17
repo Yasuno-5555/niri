@@ -1708,11 +1708,7 @@ impl<W: LayoutElement> Layout<W> {
 
         // Find the target monitor by output name.
         let target_monitor_idx = output_name
-            .and_then(|name| {
-                monitors
-                    .iter()
-                    .position(|m| m.output.name() == name)
-            })
+            .and_then(|name| monitors.iter().position(|m| m.output.name() == name))
             .unwrap_or(*active_monitor_idx);
 
         let monitor = &mut monitors[target_monitor_idx];
@@ -4232,9 +4228,13 @@ impl<W: LayoutElement> Layout<W> {
         }
 
         let Some((mon, (ws, ws_geo))) = self.monitors().find_map(|mon| {
-            mon.workspaces_with_render_geo()
-                .find(|(ws, _)| ws.has_window(&window_id))
-                .map(|rv| (mon, rv))
+            mon.workspaces
+                .iter()
+                .position(|ws| ws.has_window(&window_id))
+                .map(|idx| {
+                    let state = mon.workspace_render_states()[idx];
+                    (mon, (&mon.workspaces[idx], state))
+                })
         }) else {
             return false;
         };
@@ -4243,7 +4243,7 @@ impl<W: LayoutElement> Layout<W> {
             return false;
         }
 
-        let zoom = mon.overview_zoom();
+        let zoom = ws_geo.zoom;
 
         let is_floating = ws.is_floating(&window_id);
         let (tile, tile_offset, _visible) = ws
@@ -4252,7 +4252,7 @@ impl<W: LayoutElement> Layout<W> {
             .unwrap();
         let window_offset = tile.window_loc();
 
-        let tile_pos = ws_geo.loc + tile_offset.upscale(zoom);
+        let tile_pos = ws_geo.geo.loc + tile_offset.upscale(zoom);
 
         let pointer_offset_within_window =
             start_pos_within_output - tile_pos - window_offset.upscale(zoom);
@@ -4362,10 +4362,14 @@ impl<W: LayoutElement> Layout<W> {
                 // FIXME: when and if the layout code knows about monitor positions, this will be
                 // potentially animatable.
                 let mut tile_pos = None;
-                if let Some((mon, (ws, ws_geo))) = self.monitors().find_map(|mon| {
-                    mon.workspaces_with_render_geo()
-                        .find(|(ws, _)| ws.has_window(window))
-                        .map(|rv| (mon, rv))
+                if let Some((mon, (ws, ws_state))) = self.monitors().find_map(|mon| {
+                    mon.workspaces
+                        .iter()
+                        .position(|ws| ws.has_window(window))
+                        .map(|idx| {
+                            let state = mon.workspace_render_states()[idx];
+                            (mon, (&mon.workspaces[idx], state))
+                        })
                 }) {
                     if mon.output() == &output {
                         let (_, tile_offset, _) = ws
@@ -4373,8 +4377,8 @@ impl<W: LayoutElement> Layout<W> {
                             .find(|(tile, _, _)| tile.window().id() == window)
                             .unwrap();
 
-                        let zoom = mon.overview_zoom();
-                        tile_pos = Some((ws_geo.loc + tile_offset.upscale(zoom), zoom));
+                        let zoom = ws_state.zoom;
+                        tile_pos = Some((ws_state.geo.loc + tile_offset.upscale(zoom), zoom));
                     }
                 }
 

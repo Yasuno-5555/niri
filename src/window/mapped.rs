@@ -459,14 +459,9 @@ impl Mapped {
     pub fn advance_gesture_progress(&mut self) -> bool {
         // Extract animation state without borrowing self mutably.
         let anim_data = self.gesture_progress_effect.as_ref().and_then(|e| {
-            e.animation_target.as_ref().map(|a| {
-                (
-                    a.from,
-                    a.to,
-                    a.start,
-                    a.duration,
-                )
-            })
+            e.animation_target
+                .as_ref()
+                .map(|a| (a.from, a.to, a.start, a.duration))
         });
 
         let (from, to, start, duration) = match anim_data {
@@ -675,9 +670,10 @@ impl Mapped {
             effect.liquid = Some(true);
             effect.specular = Some(value);
         }
-        if let Some(value) =
-            interpolate_value(gesture.progress, gesture.map.chromatic_aberration.as_deref())
-        {
+        if let Some(value) = interpolate_value(
+            gesture.progress,
+            gesture.map.chromatic_aberration.as_deref(),
+        ) {
             effect.liquid = Some(true);
             effect.chromatic_aberration = Some(value);
         }

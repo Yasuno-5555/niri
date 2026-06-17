@@ -44,6 +44,8 @@ const WORKSPACE_GESTURE_RUBBER_BAND: RubberBand = RubberBand {
 ///
 /// This constant is tied to the default dnd-edge-workspace-switch max-speed setting.
 const WORKSPACE_DND_EDGE_SCROLL_MOVEMENT: f64 = 1500.;
+const OVERVIEW_SPHERE_MAX_SCALE_GAIN: f64 = 0.32;
+const OVERVIEW_SPHERE_CURVE_EXPONENT: f64 = 1.35;
 
 #[derive(Debug)]
 pub struct Monitor<W: LayoutElement> {
@@ -156,6 +158,14 @@ struct InsertHintRenderLoc {
 pub(super) enum OverviewProgress {
     Animation(Animation),
     Value(f64),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct WorkspaceRenderState {
+    pub idx: usize,
+    pub geo: Rectangle<f64, Logical>,
+    pub zoom: f64,
+    depth: f64,
 }
 
 /// Where to put a newly added window.
@@ -1370,6 +1380,14 @@ impl<W: LayoutElement> Monitor<W> {
         self.workspace_size(zoom) + Size::from((0., gap))
     }
 
+    fn overview_sphere_strength(&self) -> f64 {
+        self.overview_progress
+            .as_ref()
+            .map(OverviewProgress::clamped_value)
+            .unwrap_or(0.)
+            .clamp(0., 1.)
+    }
+
     pub fn overview_zoom(&self) -> f64 {
         let progress = self.overview_progress.as_ref().map(|p| p.value());
         compute_overview_zoom(&self.options, progress)
@@ -1472,9 +1490,14 @@ impl<W: LayoutElement> Monitor<W> {
     }
 
     pub fn workspaces_render_geo(&self) -> impl Iterator<Item = Rectangle<f64, Logical>> {
+        self.workspace_render_states()
+            .into_iter()
+            .map(|state| state.geo)
+    }
+
+    pub fn workspace_render_states(&self) -> Vec<WorkspaceRenderState> {
         let scale = self.scale.fractional_scale();
         let zoom = self.overview_zoom();
-
         let ws_size = self.workspace_size(zoom);
         let gap = self.workspace_gap(zoom);
         let ws_height_with_gap = ws_size.h + gap;
@@ -1486,42 +1509,73 @@ impl<W: LayoutElement> Monitor<W> {
 
         let first_ws_y = -self.workspace_render_idx() * ws_height_with_gap;
         let first_ws_y = round_logical_in_physical(scale, first_ws_y);
+        let sphere_strength = self.overview_sphere_strength();
+        let view_center_y = self.view_size.h / 2.;
+        let base_ws_half_h = ws_size.h / 2.;
+        let norm_denominator = (view_center_y + base_ws_half_h).max(1.);
 
         // Return position for one-past-last workspace too.
-        (0..=self.workspaces.len()).map(move |idx| {
-            let y = first_ws_y + idx as f64 * ws_height_with_gap;
-            let loc = Point::from((0., y)) + static_offset;
+        (0..=self.workspaces.len())
+            .map(move |idx| {
+                let y = first_ws_y + idx as f64 * ws_height_with_gap;
+                let base_loc = Point::from((0., y)) + static_offset;
 
-            // Even though all components that go into loc are rounded to physical pixels, the
-            // floating point addition may lose precision. This can result for example in the
-            // current workspace having y = 0.0000000000002 and thus missing pointer hits at the
-            // monitor edge with y = 0. So, post-round the location too.
-            let loc = loc.to_physical_precise_round(scale).to_logical(scale);
+                let base_center_y = base_loc.y + base_ws_half_h;
+                let norm_from_center =
+                    ((base_center_y - view_center_y) / norm_denominator).clamp(-1., 1.);
+                let edge_proximity = norm_from_center.abs().powf(OVERVIEW_SPHERE_CURVE_EXPONENT);
+                let local_zoom =
+                    zoom * (1. + OVERVIEW_SPHERE_MAX_SCALE_GAIN * sphere_strength * edge_proximity);
+                let local_size = self.workspace_size(local_zoom);
 
-            Rectangle::new(loc, ws_size)
-        })
+                let loc_x = (self.view_size.w - local_size.w) / 2.;
+                let loc_y = base_center_y - local_size.h / 2.;
+                let loc = Point::from((loc_x, loc_y))
+                    .to_physical_precise_round(scale)
+                    .to_logical(scale);
+
+                WorkspaceRenderState {
+                    idx,
+                    geo: Rectangle::new(loc, local_size),
+                    zoom: local_zoom,
+                    depth: edge_proximity,
+                }
+            })
+            .collect()
+    }
+
+    fn workspace_render_states_in_render_order(&self) -> Vec<WorkspaceRenderState> {
+        let mut states = self.workspace_render_states();
+        states.sort_by(|a, b| a.depth.total_cmp(&b.depth).then_with(|| a.idx.cmp(&b.idx)));
+        states
     }
 
     pub fn workspaces_with_render_geo(
         &self,
     ) -> impl Iterator<Item = (&Workspace<W>, Rectangle<f64, Logical>)> {
         let output_geo = Rectangle::from_size(self.view_size);
-
-        let geo = self.workspaces_render_geo();
-        zip(self.workspaces.iter(), geo)
-            // Cull out workspaces outside the output.
-            .filter(move |(_ws, geo)| geo.intersection(output_geo).is_some())
+        self.workspace_render_states()
+            .into_iter()
+            .filter_map(move |state| {
+                let ws = self.workspaces.get(state.idx)?;
+                let geo = state.geo;
+                geo.intersection(output_geo).is_some().then_some((ws, geo))
+            })
     }
 
     pub fn workspaces_with_render_geo_idx(
         &self,
     ) -> impl Iterator<Item = ((usize, &Workspace<W>), Rectangle<f64, Logical>)> {
         let output_geo = Rectangle::from_size(self.view_size);
-
-        let geo = self.workspaces_render_geo();
-        zip(self.workspaces.iter().enumerate(), geo)
-            // Cull out workspaces outside the output.
-            .filter(move |(_ws, geo)| geo.intersection(output_geo).is_some())
+        self.workspace_render_states()
+            .into_iter()
+            .filter_map(move |state| {
+                let ws = self.workspaces.get(state.idx)?;
+                let geo = state.geo;
+                geo.intersection(output_geo)
+                    .is_some()
+                    .then_some(((state.idx, ws), geo))
+            })
     }
 
     pub fn workspaces_with_render_geo_mut(
@@ -1529,10 +1583,12 @@ impl<W: LayoutElement> Monitor<W> {
         cull: bool,
     ) -> impl Iterator<Item = (&mut Workspace<W>, Rectangle<f64, Logical>)> {
         let output_geo = Rectangle::from_size(self.view_size);
-
-        let geo = self.workspaces_render_geo();
-        zip(self.workspaces.iter_mut(), geo)
-            // Cull out workspaces outside the output.
+        let geos: Vec<_> = self
+            .workspace_render_states()
+            .into_iter()
+            .map(|state| state.geo)
+            .collect();
+        zip(self.workspaces.iter_mut(), geos)
             .filter(move |(_ws, geo)| !cull || geo.intersection(output_geo).is_some())
     }
 
@@ -1540,14 +1596,19 @@ impl<W: LayoutElement> Monitor<W> {
         &self,
         pos_within_output: Point<f64, Logical>,
     ) -> Option<(&Workspace<W>, Rectangle<f64, Logical>)> {
-        let (ws, geo) = self.workspaces_with_render_geo().find_map(|(ws, geo)| {
-            // Extend width to entire output.
-            let loc = Point::from((0., geo.loc.y));
-            let size = Size::from((self.view_size.w, geo.size.h));
-            let bounds = Rectangle::new(loc, size);
-
-            bounds.contains(pos_within_output).then_some((ws, geo))
-        })?;
+        let output_width = self.view_size.w;
+        let (ws, geo) = self
+            .workspace_render_states_in_render_order()
+            .into_iter()
+            .rev()
+            .find_map(|state| {
+                let ws = self.workspaces.get(state.idx)?;
+                let geo = state.geo;
+                let loc = Point::from((0., geo.loc.y));
+                let size = Size::from((output_width, geo.size.h));
+                let bounds = Rectangle::new(loc, size);
+                bounds.contains(pos_within_output).then_some((ws, geo))
+            })?;
         Some((ws, geo))
     }
 
@@ -1555,15 +1616,25 @@ impl<W: LayoutElement> Monitor<W> {
         &self,
         pos_within_output: Point<f64, Logical>,
     ) -> Option<&Workspace<W>> {
-        self.workspaces_with_render_geo()
-            .find_map(|(ws, geo)| geo.contains(pos_within_output).then_some(ws))
+        self.workspace_render_states_in_render_order()
+            .into_iter()
+            .rev()
+            .find_map(|state| {
+                state.geo.contains(pos_within_output).then_some(())?;
+                self.workspaces.get(state.idx)
+            })
     }
 
     pub fn window_under(&self, pos_within_output: Point<f64, Logical>) -> Option<(&W, HitType)> {
         let (ws, geo) = self.workspace_under(pos_within_output)?;
 
         if self.overview_progress.is_some() {
-            let zoom = self.overview_zoom();
+            let zoom = self
+                .workspace_render_states()
+                .into_iter()
+                .find(|state| state.geo == geo)
+                .map(|state| state.zoom)
+                .unwrap_or_else(|| self.overview_zoom());
             let pos_within_workspace = (pos_within_output - geo.loc).downscale(zoom);
             let (win, hit) = ws.window_under(pos_within_workspace)?;
             // During the overview animation, we cannot do input hits because we cannot really
@@ -1710,25 +1781,26 @@ impl<W: LayoutElement> Monitor<W> {
             )
         };
 
-        let zoom = self.overview_zoom();
-
         let insert_hint_render_loc = self
             .insert_hint_render_loc
             .filter(|_| !self.options.layout.insert_hint.off);
 
-        let scale_relocate = move |geo: Rectangle<f64, Logical>, elem| {
-            let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
+        let scale_relocate = move |state: WorkspaceRenderState, elem| {
+            let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), state.zoom);
             RelocateRenderElement::from_element(
                 elem,
                 // The offset we get from workspaces_with_render_geo() is already
                 // rounded to physical pixels, but it's in the logical coordinate
                 // space, so we need to convert it to physical.
-                geo.loc.to_physical_precise_round(scale),
+                state.geo.loc.to_physical_precise_round(scale),
                 Relocate::Relative,
             )
         };
 
-        for (ws, geo) in self.workspaces_with_render_geo() {
+        for state in self.workspace_render_states_in_render_order() {
+            let Some(ws) = self.workspaces.get(state.idx) else {
+                continue;
+            };
             // Macro instead of closure because ws and insert hint have different elem types.
             macro_rules! push {
                 () => {{
@@ -1736,13 +1808,13 @@ impl<W: LayoutElement> Monitor<W> {
                         let elem = CropRenderElement::from_element(elem, scale, crop_bounds);
                         if let Some(elem) = elem {
                             let elem = MonitorInnerRenderElement::from(elem);
-                            push(scale_relocate(geo, elem));
+                            push(scale_relocate(state, elem));
                         }
                     }
                 }};
             }
 
-            let xray_pos = XrayPos::new(geo.loc, zoom);
+            let xray_pos = XrayPos::new(state.geo.loc, state.zoom);
 
             ws.render_floating(ctx.r(), xray_pos, focus_ring, switch_progress, push!());
 
@@ -1770,16 +1842,18 @@ impl<W: LayoutElement> Monitor<W> {
         let _span = tracy_client::span!("Monitor::render_workspace_shadows");
 
         let scale = self.scale.fractional_scale();
-        let zoom = self.overview_zoom();
-
-        for (ws, geo) in self.workspaces_with_render_geo() {
+        for state in self.workspace_render_states_in_render_order() {
+            let Some(ws) = self.workspaces.get(state.idx) else {
+                continue;
+            };
             ws.render_shadow(renderer, &mut |elem| {
                 let elem = elem.with_alpha(alpha);
                 let elem = MonitorInnerRenderElement::Shadow(elem);
-                let elem = RescaleRenderElement::from_element(elem, Point::from((0, 0)), zoom);
+                let elem =
+                    RescaleRenderElement::from_element(elem, Point::from((0, 0)), state.zoom);
                 let elem = RelocateRenderElement::from_element(
                     elem,
-                    geo.loc.to_physical_precise_round(scale),
+                    state.geo.loc.to_physical_precise_round(scale),
                     Relocate::Relative,
                 );
                 push(elem);

@@ -522,8 +522,17 @@ impl MaterialNodeDoc {
 /// Animation curve definition.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AnimationCurve {
-    Bezier { x1: f64, y1: f64, x2: f64, y2: f64 },
-    Spring { stiffness: f64, damping: f64, mass: f64 },
+    Bezier {
+        x1: f64,
+        y1: f64,
+        x2: f64,
+        y2: f64,
+    },
+    Spring {
+        stiffness: f64,
+        damping: f64,
+        mass: f64,
+    },
 }
 
 /// Animation graph node connecting input to output.
@@ -636,7 +645,11 @@ pub struct PerformanceBudgetPart {
 
 impl MergeWith<PerformanceBudgetPart> for PerformanceBudget {
     fn merge_with(&mut self, part: &PerformanceBudgetPart) {
-        merge!((self, part), disable_dispersion_on_battery, downgrade_material_on_frame_drop);
+        merge!(
+            (self, part),
+            disable_dispersion_on_battery,
+            downgrade_material_on_frame_drop
+        );
         merge_clone!((self, part), target_fps, max_blur_passes);
     }
 }
@@ -723,9 +736,10 @@ impl UnifiedRuleDoc {
             .unwrap_or(RuleTarget::Window);
 
         // Extract simple filters from the first match block.
-        let (app_id_filter, title_filter) = self.matchers.first().map_or((None, None), |m| {
-            (m.app_id.clone(), m.title.clone())
-        });
+        let (app_id_filter, title_filter) = self
+            .matchers
+            .first()
+            .map_or((None, None), |m| (m.app_id.clone(), m.title.clone()));
 
         UnifiedRule {
             id: self.name,

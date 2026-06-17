@@ -2505,7 +2505,8 @@ impl State {
                     let mut found = false;
                     {
                         let config = self.niri.config.borrow();
-                        if let Some(mat) = config.materials.iter().find(|m| &m.name == material_name)
+                        if let Some(mat) =
+                            config.materials.iter().find(|m| &m.name == material_name)
                         {
                             self.niri.layout.with_windows_mut(|mapped, _| {
                                 if (mapped as *const crate::window::Mapped) == focus_ptr {
@@ -2519,7 +2520,9 @@ impl State {
                         self.niri.trigger_status_update();
                         self.niri.queue_redraw_all();
                         // Show HUD feedback without re-dispatching the action.
-                        self.niri.mode_hud.trigger(format!("MATERIAL · {material_name}"));
+                        self.niri
+                            .mode_hud
+                            .trigger(format!("MATERIAL · {material_name}"));
                     }
                 }
             }
@@ -3980,8 +3983,7 @@ impl State {
                         .iter()
                         .find(|gesture| {
                             fingers_u8.is_some_and(|count| gesture.fingers() == count)
-                                &&
-                            gesture.matches_start_region(local_pos, output_size)
+                                && gesture.matches_start_region(local_pos, output_size)
                                 && gesture.parsed_action().is_some()
                         })
                         .cloned();

@@ -58,11 +58,11 @@ pub use crate::layer_rule::LayerRule;
 pub use crate::layout::ScratchColumn;
 pub use crate::layout::*;
 pub use crate::liquid::{
-    ActionArgSpec, ActionCategory, ActionDescriptor, ActionSource, AnimationCurve, AnimationCurveDoc,
-    AnimationGraphDoc, AnimationNode, AnimationNodeDoc, Capability, DispatchAlias, DispatchAliasDoc,
-    MaterialGraph, MaterialGraphDoc, MaterialNode, MaterialNodeDoc, NiriLiquid, NiriLiquidPart,
-    Overlays, OverlaysPart, PerformanceBudget, PerformanceBudgetPart, RuleAction, RuleTarget,
-    SafeMode, SafeModePart, ScriptConfig,
+    ActionArgSpec, ActionCategory, ActionDescriptor, ActionSource, AnimationCurve,
+    AnimationCurveDoc, AnimationGraphDoc, AnimationNode, AnimationNodeDoc, Capability,
+    DispatchAlias, DispatchAliasDoc, MaterialGraph, MaterialGraphDoc, MaterialNode,
+    MaterialNodeDoc, NiriLiquid, NiriLiquidPart, Overlays, OverlaysPart, PerformanceBudget,
+    PerformanceBudgetPart, RuleAction, RuleTarget, SafeMode, SafeModePart, ScriptConfig,
     ScriptConfigPart, UnifiedRule, UnifiedRuleDoc,
 };
 pub use crate::misc::*;
@@ -318,8 +318,11 @@ where
                 }
                 "material-graph" => {
                     let doc = MaterialGraphDoc::decode_node(node, ctx)?;
-                    let nodes: Vec<MaterialNode> = doc.nodes.into_iter()
-                        .filter_map(|n| n.into_node()).collect();
+                    let nodes: Vec<MaterialNode> = doc
+                        .nodes
+                        .into_iter()
+                        .filter_map(|n| n.into_node())
+                        .collect();
                     config.borrow_mut().material_graphs.push(MaterialGraph {
                         name: doc.name,
                         nodes,

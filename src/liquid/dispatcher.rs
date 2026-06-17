@@ -60,14 +60,26 @@ pub struct DispatchResult {
 
 impl DispatchResult {
     pub fn ok() -> Self {
-        Self { success: true, message: None, error: None }
+        Self {
+            success: true,
+            message: None,
+            error: None,
+        }
     }
 
     pub fn ok_with(msg: impl Into<String>) -> Self {
-        Self { success: true, message: Some(msg.into()), error: None }
+        Self {
+            success: true,
+            message: Some(msg.into()),
+            error: None,
+        }
     }
 
     pub fn err(error: impl Into<String>) -> Self {
-        Self { success: false, message: None, error: Some(error.into()) }
+        Self {
+            success: false,
+            message: None,
+            error: Some(error.into()),
+        }
     }
 }

@@ -84,7 +84,8 @@ impl ScriptEngine {
         };
 
         let Ok(entries) = std::fs::read_dir(dir) else {
-            self.last_errors.push(format!("cannot read script dir: {:?}", dir));
+            self.last_errors
+                .push(format!("cannot read script dir: {:?}", dir));
             return;
         };
 
@@ -113,7 +114,8 @@ impl ScriptEngine {
                         });
                     }
                     Err(err) => {
-                        self.last_errors.push(format!("{name}: compile error: {err}"));
+                        self.last_errors
+                            .push(format!("{name}: compile error: {err}"));
                     }
                 },
                 Err(err) => {
@@ -172,9 +174,7 @@ impl ScriptEngine {
             }
 
             // Run the script with the event.
-            let result = self
-                .rhai_engine
-                .run_ast_with_scope(&mut scope, &script.ast);
+            let result = self.rhai_engine.run_ast_with_scope(&mut scope, &script.ast);
 
             if let Err(err) = result {
                 warn!("script {}: runtime error: {}", script.name, err);
@@ -216,20 +216,11 @@ fn event_to_map(event: &LiquidEvent) -> rhai::Map {
             map.insert("profile".into(), to.clone().into());
         }
         LiquidEvent::FocusChanged { app_id, title } => {
-            map.insert(
-                "app_id".into(),
-                app_id.clone().unwrap_or_default().into(),
-            );
-            map.insert(
-                "title".into(),
-                title.clone().unwrap_or_default().into(),
-            );
+            map.insert("app_id".into(), app_id.clone().unwrap_or_default().into());
+            map.insert("title".into(), title.clone().unwrap_or_default().into());
         }
         LiquidEvent::WorkspaceChanged { name } => {
-            map.insert(
-                "workspace".into(),
-                name.clone().unwrap_or_default().into(),
-            );
+            map.insert("workspace".into(), name.clone().unwrap_or_default().into());
         }
         LiquidEvent::SpecialWorkspaceToggled { name } => {
             map.insert("name".into(), name.clone().into());

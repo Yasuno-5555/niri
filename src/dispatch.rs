@@ -65,9 +65,7 @@ pub fn parse_dispatch(args: &[String]) -> anyhow::Result<Action> {
 
         "togglefullscreen" => Ok(Action::ToggleWindowedFullscreen { id: None }),
 
-        "togglefloating" => Ok(Action::ToggleWindowFloating {
-            id: None,
-        }),
+        "togglefloating" => Ok(Action::ToggleWindowFloating { id: None }),
 
         // ── Focus / Navigation ────────────────────────────────────────
         "movefocus" => parse_movefocus(cmd_args),
@@ -234,9 +232,7 @@ fn parse_swapwindow(args: &[String]) -> anyhow::Result<Action> {
     match args[0].as_str() {
         "l" | "left" => Ok(Action::SwapWindowLeft {}),
         "r" | "right" => Ok(Action::SwapWindowRight {}),
-        dir => bail!(
-            "unknown swapwindow direction: `{dir}`. Use l/left or r/right"
-        ),
+        dir => bail!("unknown swapwindow direction: `{dir}`. Use l/left or r/right"),
     }
 }
 
@@ -286,9 +282,7 @@ fn parse_movewindow(args: &[String]) -> anyhow::Result<Action> {
         "d" | "down" => Ok(Action::MoveWindowDown {}),
         "l" | "left" => Ok(Action::ConsumeOrExpelWindowLeft { id: None }),
         "r" | "right" => Ok(Action::ConsumeOrExpelWindowRight { id: None }),
-        dir => bail!(
-            "unknown movewindow direction: `{dir}`. Use u/up, d/down, l/left, r/right"
-        ),
+        dir => bail!("unknown movewindow direction: `{dir}`. Use u/up, d/down, l/left, r/right"),
     }
 }
 
@@ -332,8 +326,7 @@ mod tests {
 
     #[test]
     fn dispatch_execr() {
-        let action =
-            parse_dispatch(&["execr".into(), "firefox --new-window".into()]).unwrap();
+        let action = parse_dispatch(&["execr".into(), "firefox --new-window".into()]).unwrap();
         assert_eq!(
             debug_action(action),
             debug_action(Action::SpawnSh {
@@ -381,7 +374,10 @@ mod tests {
     #[test]
     fn dispatch_movefocus_left() {
         let action = parse_dispatch(&["movefocus".into(), "l".into()]).unwrap();
-        assert_eq!(debug_action(action), debug_action(Action::FocusColumnLeft {}));
+        assert_eq!(
+            debug_action(action),
+            debug_action(Action::FocusColumnLeft {})
+        );
     }
 
     #[test]
@@ -450,8 +446,7 @@ mod tests {
 
     #[test]
     fn dispatch_movetoworkspace() {
-        let action =
-            parse_dispatch(&["movetoworkspace".into(), "dev".into()]).unwrap();
+        let action = parse_dispatch(&["movetoworkspace".into(), "dev".into()]).unwrap();
         assert_eq!(
             debug_action(action),
             debug_action(Action::MoveWindowToWorkspace {
@@ -464,8 +459,7 @@ mod tests {
 
     #[test]
     fn dispatch_movetoworkspacesilent() {
-        let action =
-            parse_dispatch(&["movetoworkspacesilent".into(), "dev".into()]).unwrap();
+        let action = parse_dispatch(&["movetoworkspacesilent".into(), "dev".into()]).unwrap();
         assert_eq!(
             debug_action(action),
             debug_action(Action::MoveWindowToWorkspace {
@@ -478,8 +472,7 @@ mod tests {
 
     #[test]
     fn dispatch_togglespecialworkspace() {
-        let action = parse_dispatch(&["togglespecialworkspace".into(), "terminal".into()])
-            .unwrap();
+        let action = parse_dispatch(&["togglespecialworkspace".into(), "terminal".into()]).unwrap();
         assert_eq!(
             debug_action(action),
             debug_action(Action::ToggleScratchColumn {
@@ -501,8 +494,7 @@ mod tests {
 
     #[test]
     fn dispatch_setanimationprofile() {
-        let action =
-            parse_dispatch(&["setanimationprofile".into(), "slow".into()]).unwrap();
+        let action = parse_dispatch(&["setanimationprofile".into(), "slow".into()]).unwrap();
         assert_eq!(
             debug_action(action),
             debug_action(Action::SetAnimationProfile {
@@ -513,8 +505,7 @@ mod tests {
 
     #[test]
     fn dispatch_setmaterial() {
-        let action =
-            parse_dispatch(&["setmaterial".into(), "frosted-ceramic".into()]).unwrap();
+        let action = parse_dispatch(&["setmaterial".into(), "frosted-ceramic".into()]).unwrap();
         assert_eq!(
             debug_action(action),
             debug_action(Action::SetMaterial {
@@ -571,10 +562,7 @@ mod tests {
     #[test]
     fn dispatch_center() {
         let action = parse_dispatch(&["centercolumn".into()]).unwrap();
-        assert_eq!(
-            debug_action(action),
-            debug_action(Action::CenterColumn {})
-        );
+        assert_eq!(debug_action(action), debug_action(Action::CenterColumn {}));
 
         let action = parse_dispatch(&["centerwindow".into()]).unwrap();
         assert_eq!(

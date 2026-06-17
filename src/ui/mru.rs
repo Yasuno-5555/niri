@@ -421,11 +421,7 @@ impl Thumbnail {
                                 .background_effect
                                 .edge_highlight
                                 .unwrap_or(0.0) as f32,
-                            mapped
-                                .rules()
-                                .background_effect
-                                .bloom
-                                .unwrap_or(0.0) as f32,
+                            mapped.rules().background_effect.bloom.unwrap_or(0.0) as f32,
                         );
                         return ThumbnailRenderElement::ClippedSurface(elem);
                     }

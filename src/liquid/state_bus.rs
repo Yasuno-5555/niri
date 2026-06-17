@@ -13,41 +13,26 @@ use std::collections::VecDeque;
 #[derive(Debug, Clone, PartialEq)]
 pub enum LiquidEvent {
     /// Active material changed.
-    MaterialChanged {
-        to: String,
-    },
+    MaterialChanged { to: String },
     /// Animation profile changed.
-    AnimationProfileChanged {
-        to: String,
-    },
+    AnimationProfileChanged { to: String },
     /// Performance profile changed.
-    PerformanceProfileChanged {
-        to: String,
-    },
+    PerformanceProfileChanged { to: String },
     /// Window focus changed.
     FocusChanged {
         app_id: Option<String>,
         title: Option<String>,
     },
     /// Active workspace changed.
-    WorkspaceChanged {
-        name: Option<String>,
-    },
+    WorkspaceChanged { name: Option<String> },
     /// A special workspace (scratch column) was toggled.
-    SpecialWorkspaceToggled {
-        name: String,
-    },
+    SpecialWorkspaceToggled { name: String },
     /// Safe mode was toggled.
-    SafeModeToggled {
-        active: bool,
-    },
+    SafeModeToggled { active: bool },
     /// Config was reloaded from disk.
     ConfigReloaded,
     /// Keybind action executed with feedback.
-    ActionDispatched {
-        action_id: String,
-        source: String,
-    },
+    ActionDispatched { action_id: String, source: String },
 }
 
 impl LiquidEvent {
@@ -143,9 +128,7 @@ mod tests {
         bus.publish(LiquidEvent::MaterialChanged {
             to: "obsidian-glass".into(),
         });
-        bus.publish(LiquidEvent::AnimationProfileChanged {
-            to: "focus".into(),
-        });
+        bus.publish(LiquidEvent::AnimationProfileChanged { to: "focus".into() });
 
         let events = bus.drain();
         assert_eq!(events.len(), 2);

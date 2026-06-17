@@ -573,8 +573,7 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
             };
 
             if json {
-                let caps =
-                    serde_json::to_string(&caps).context("error formatting response")?;
+                let caps = serde_json::to_string(&caps).context("error formatting response")?;
                 println!("{caps}");
                 return Ok(());
             }
@@ -602,7 +601,12 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                     .as_deref()
                     .map(|b| format!(" [{b}]"))
                     .unwrap_or_default();
-                println!("{:<40} {:<30}{}", action.id, format!("({})", action.category), bind);
+                println!(
+                    "{:<40} {:<30}{}",
+                    action.id,
+                    format!("({})", action.category),
+                    bind
+                );
                 if !action.args.is_empty() {
                     for arg in &action.args {
                         let req = if arg.required { "*" } else { " " };
@@ -618,8 +622,7 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
             };
 
             if json {
-                let events =
-                    serde_json::to_string(&events).context("error formatting response")?;
+                let events = serde_json::to_string(&events).context("error formatting response")?;
                 println!("{events}");
                 return Ok(());
             }

@@ -137,7 +137,10 @@ impl<R: NiriRenderer> ClippedSurfaceRenderElement<R> {
         uniforms.push(Uniform::new("specular", self.specular));
         uniforms.push(Uniform::new("edge_highlight", self.edge_highlight));
         uniforms.push(Uniform::new("bloom", self.bloom));
-        uniforms.push(Uniform::new("time", super::background_effect::get_render_time()));
+        uniforms.push(Uniform::new(
+            "time",
+            super::background_effect::get_render_time(),
+        ));
 
         uniforms
     }

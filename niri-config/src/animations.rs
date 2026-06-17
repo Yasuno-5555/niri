@@ -840,11 +840,8 @@ where
         };
 
         let mut easing_override: Option<EasingParams> = None;
-        let animation = Animation::decode_node_allow_args(
-            node,
-            ctx,
-            default_anim,
-            |child, ctx| {
+        let animation =
+            Animation::decode_node_allow_args(node, ctx, default_anim, |child, ctx| {
                 if &**child.node_name == "easing" {
                     if easing_override.is_some() {
                         ctx.emit_error(DecodeError::unexpected(
@@ -859,8 +856,7 @@ where
                 } else {
                     Ok(false)
                 }
-            },
-        )?;
+            })?;
 
         // If an `easing` node was supplied, override the kind.
         let animation = if let Some(easing) = easing_override {
@@ -956,12 +952,10 @@ where
             }
         }
 
-        let duration_ms = duration_ms.ok_or_else(|| {
-            DecodeError::missing(node, "property `duration-ms` is required")
-        })?;
-        let curve = curve.ok_or_else(|| {
-            DecodeError::missing(node, "property `curve` is required")
-        })?;
+        let duration_ms = duration_ms
+            .ok_or_else(|| DecodeError::missing(node, "property `duration-ms` is required"))?;
+        let curve =
+            curve.ok_or_else(|| DecodeError::missing(node, "property `curve` is required"))?;
 
         if duration_ms == 0 {
             ctx.emit_error(DecodeError::conversion(

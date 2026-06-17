@@ -167,10 +167,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 4. NIRI_SAFE_MODE environment variable is set to "1"
     let prev_crashed = write_crash_sentinel();
     let env_safe_mode = env::var_os("NIRI_SAFE_MODE").is_some_and(|v| v == "1");
-    let start_in_safe_mode = cli.safe_mode
-        || prev_crashed
-        || config_errored
-        || env_safe_mode;
+    let start_in_safe_mode = cli.safe_mode || prev_crashed || config_errored || env_safe_mode;
 
     if cli.safe_mode {
         info!("starting in safe mode (--safe-mode flag)");

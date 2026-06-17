@@ -458,8 +458,8 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
             Response::Casts(casts)
         }
         Request::DispatchDispatcher { command } => {
-            let action = parse_dispatch(&command)
-                .map_err(|err| format!("dispatch parse error: {err}"))?;
+            let action =
+                parse_dispatch(&command).map_err(|err| format!("dispatch parse error: {err}"))?;
             validate_action(&action)?;
 
             let (tx, rx) = async_channel::bounded(1);
@@ -483,7 +483,9 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
                     .collect();
                 let _ = tx.send_blocking(caps);
             });
-            let caps = rx.recv().await
+            let caps = rx
+                .recv()
+                .await
                 .map_err(|_| String::from("error getting capabilities"))?;
             Response::Capabilities(caps)
         }
@@ -500,19 +502,25 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
                         label: a.label.clone(),
                         category: format!("{:?}", a.category),
                         default_bind: a.default_bind.clone(),
-                        args: a.args.iter().map(|arg| niri_ipc::ActionArgDescriptor {
-                            name: arg.name.clone(),
-                            description: arg.description.clone(),
-                            required: arg.required,
-                            examples: arg.examples.clone(),
-                        }).collect(),
+                        args: a
+                            .args
+                            .iter()
+                            .map(|arg| niri_ipc::ActionArgDescriptor {
+                                name: arg.name.clone(),
+                                description: arg.description.clone(),
+                                required: arg.required,
+                                examples: arg.examples.clone(),
+                            })
+                            .collect(),
                         source: format!("{:?}", a.source),
                         capability: a.capability.map(|c| c.name().to_string()),
                     })
                     .collect();
                 let _ = tx.send_blocking(actions);
             });
-            let actions = rx.recv().await
+            let actions = rx
+                .recv()
+                .await
                 .map_err(|_| String::from("error getting actions"))?;
             Response::Actions(actions)
         }
@@ -528,7 +536,9 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
                     .collect();
                 let _ = tx.send_blocking(events);
             });
-            let events = rx.recv().await
+            let events = rx
+                .recv()
+                .await
                 .map_err(|_| String::from("error getting events"))?;
             Response::Events(events)
         }
@@ -538,42 +548,34 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
                 let mut lines = Vec::new();
                 if let Some(focused) = state.niri.layout.focus() {
                     let rules = focused.window_rules();
-                    lines.push(format!(
-                        "workspace: {:?}",
-                        rules.open_on_workspace
-                    ));
-                    lines.push(format!(
-                        "effect_preset: {:?}",
-                        rules.effect_preset
-                    ));
-                    lines.push(format!(
-                        "floating: {}",
-                        focused.is_floating()
-                    ));
-                    lines.push(format!(
-                        "opacity: {:?}",
-                        rules.opacity
-                    ));
+                    lines.push(format!("workspace: {:?}", rules.open_on_workspace));
+                    lines.push(format!("effect_preset: {:?}", rules.effect_preset));
+                    lines.push(format!("floating: {}", focused.is_floating()));
+                    lines.push(format!("opacity: {:?}", rules.opacity));
                 } else {
                     lines.push("no focused window".into());
                 }
                 let _ = tx.send_blocking(lines);
             });
-            let lines = rx.recv().await
+            let lines = rx
+                .recv()
+                .await
                 .map_err(|_| String::from("error inspecting"))?;
             Response::Inspect(lines)
         }
         Request::TraceRules => {
             let (tx, rx) = async_channel::bounded(1);
             ctx.event_loop.insert_idle(move |state| {
-                let lines = state.niri.rule_engine.trace(
-                    niri_config::RuleTarget::Window,
-                    None,
-                    None,
-                );
+                let lines =
+                    state
+                        .niri
+                        .rule_engine
+                        .trace(niri_config::RuleTarget::Window, None, None);
                 let _ = tx.send_blocking(lines);
             });
-            let lines = rx.recv().await
+            let lines = rx
+                .recv()
+                .await
                 .map_err(|_| String::from("error tracing rules"))?;
             Response::TraceRules(lines)
         }
@@ -617,7 +619,9 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
                 }
                 let _ = tx.send_blocking(lines);
             });
-            let lines = rx.recv().await
+            let lines = rx
+                .recv()
+                .await
                 .map_err(|_| String::from("error managing scripts"))?;
             Response::Scripts(lines)
         }

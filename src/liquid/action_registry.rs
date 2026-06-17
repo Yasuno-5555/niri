@@ -9,9 +9,7 @@
 //! - Documentation generator
 //! - Future Rhai scripting layer
 
-use niri_config::{
-    ActionArgSpec, ActionCategory, ActionDescriptor, ActionSource, Capability,
-};
+use niri_config::{ActionArgSpec, ActionCategory, ActionDescriptor, ActionSource, Capability};
 
 /// The central action registry.
 #[derive(Debug, Clone)]
@@ -31,7 +29,12 @@ impl ActionRegistry {
             ActionCategory::System,
             ActionSource::Niri,
             None,
-            &[("skip-confirmation", "Skip the exit confirmation dialog", false, &["true", "false"])],
+            &[(
+                "skip-confirmation",
+                "Skip the exit confirmation dialog",
+                false,
+                &["true", "false"],
+            )],
         ));
         actions.push(descriptor(
             "suspend",
@@ -63,7 +66,12 @@ impl ActionRegistry {
             ActionCategory::System,
             ActionSource::Niri,
             None,
-            &[("command", "Command and arguments to spawn", true, &["firefox", "ghostty"])],
+            &[(
+                "command",
+                "Command and arguments to spawn",
+                true,
+                &["firefox", "ghostty"],
+            )],
         ));
         actions.push(descriptor(
             "spawn-sh",
@@ -71,7 +79,12 @@ impl ActionRegistry {
             ActionCategory::System,
             ActionSource::Niri,
             None,
-            &[("command", "Shell command to run", true, &["firefox --new-window"])],
+            &[(
+                "command",
+                "Shell command to run",
+                true,
+                &["firefox --new-window"],
+            )],
         ));
         actions.push(descriptor(
             "do-screen-transition",
@@ -79,7 +92,12 @@ impl ActionRegistry {
             ActionCategory::System,
             ActionSource::Niri,
             None,
-            &[("delay-ms", "Delay before transition in milliseconds", false, &["100", "500"])],
+            &[(
+                "delay-ms",
+                "Delay before transition in milliseconds",
+                false,
+                &["100", "500"],
+            )],
         ));
 
         // ── Window ────────────────────────────────────────────────────
@@ -129,7 +147,12 @@ impl ActionRegistry {
             ActionCategory::Window,
             ActionSource::Niri,
             None,
-            &[("change", "Size change (e.g., set 800, adjust +50)", true, &["set 800", "adjust +50", "set-pct 50%"])],
+            &[(
+                "change",
+                "Size change (e.g., set 800, adjust +50)",
+                true,
+                &["set 800", "adjust +50", "set-pct 50%"],
+            )],
         ));
         actions.push(descriptor(
             "set-window-height",
@@ -137,7 +160,12 @@ impl ActionRegistry {
             ActionCategory::Window,
             ActionSource::Niri,
             None,
-            &[("change", "Size change (e.g., set 600, adjust -20)", true, &["set 600", "adjust -20"])],
+            &[(
+                "change",
+                "Size change (e.g., set 600, adjust -20)",
+                true,
+                &["set 600", "adjust -20"],
+            )],
         ));
 
         // ── Column ────────────────────────────────────────────────────
@@ -323,7 +351,12 @@ impl ActionRegistry {
             ActionCategory::Column,
             ActionSource::Niri,
             None,
-            &[("mode", "Display mode: normal or tabbed", true, &["normal", "tabbed"])],
+            &[(
+                "mode",
+                "Display mode: normal or tabbed",
+                true,
+                &["normal", "tabbed"],
+            )],
         ));
         actions.push(descriptor(
             "center-column",
@@ -373,7 +406,12 @@ impl ActionRegistry {
             ActionCategory::Workspace,
             ActionSource::Niri,
             None,
-            &[("reference", "Workspace name or index", true, &["dev", "3", "browser"])],
+            &[(
+                "reference",
+                "Workspace name or index",
+                true,
+                &["dev", "3", "browser"],
+            )],
         ));
         actions.push(descriptor(
             "move-window-to-workspace-down",
@@ -381,7 +419,12 @@ impl ActionRegistry {
             ActionCategory::Workspace,
             ActionSource::Niri,
             None,
-            &[("focus", "Whether to follow the window", false, &["true", "false"])],
+            &[(
+                "focus",
+                "Whether to follow the window",
+                false,
+                &["true", "false"],
+            )],
         ));
         actions.push(descriptor(
             "move-window-to-workspace-up",
@@ -389,7 +432,12 @@ impl ActionRegistry {
             ActionCategory::Workspace,
             ActionSource::Niri,
             None,
-            &[("focus", "Whether to follow the window", false, &["true", "false"])],
+            &[(
+                "focus",
+                "Whether to follow the window",
+                false,
+                &["true", "false"],
+            )],
         ));
         actions.push(descriptor(
             "move-window-to-workspace",
@@ -405,7 +453,12 @@ impl ActionRegistry {
             ActionCategory::Workspace,
             ActionSource::Niri,
             None,
-            &[("focus", "Whether to follow the column", false, &["true", "false"])],
+            &[(
+                "focus",
+                "Whether to follow the column",
+                false,
+                &["true", "false"],
+            )],
         ));
         actions.push(descriptor(
             "move-column-to-workspace-up",
@@ -413,7 +466,12 @@ impl ActionRegistry {
             ActionCategory::Workspace,
             ActionSource::Niri,
             None,
-            &[("focus", "Whether to follow the column", false, &["true", "false"])],
+            &[(
+                "focus",
+                "Whether to follow the column",
+                false,
+                &["true", "false"],
+            )],
         ));
         actions.push(descriptor(
             "move-workspace-down",
@@ -437,7 +495,12 @@ impl ActionRegistry {
             ActionCategory::Workspace,
             ActionSource::Niri,
             None,
-            &[("name", "New workspace name", true, &["dev", "browser", "chat"])],
+            &[(
+                "name",
+                "New workspace name",
+                true,
+                &["dev", "browser", "chat"],
+            )],
         ));
 
         // ── Monitor ───────────────────────────────────────────────────
@@ -489,7 +552,12 @@ impl ActionRegistry {
             ActionCategory::System,
             ActionSource::Niri,
             None,
-            &[("show-pointer", "Whether to show pointer", false, &["true", "false"])],
+            &[(
+                "show-pointer",
+                "Whether to show pointer",
+                false,
+                &["true", "false"],
+            )],
         ));
         actions.push(descriptor(
             "screenshot-screen",
@@ -551,7 +619,19 @@ impl ActionRegistry {
             ActionCategory::Material,
             ActionSource::NiriLiquid,
             None,
-            &[("material", "Material name", true, &["obsidian-glass", "frosted-ceramic", "hologram-film", "acrylic-smoke", "neon-wet", "paper-mist"])],
+            &[(
+                "material",
+                "Material name",
+                true,
+                &[
+                    "obsidian-glass",
+                    "frosted-ceramic",
+                    "hologram-film",
+                    "acrylic-smoke",
+                    "neon-wet",
+                    "paper-mist",
+                ],
+            )],
         ));
         let has_liquid = config.niri_liquid.disable_liquid_materials == false;
         if has_liquid {
@@ -565,7 +645,12 @@ impl ActionRegistry {
             ActionCategory::Animation,
             ActionSource::NiriLiquid,
             None,
-            &[("profile", "Animation profile name", true, &["default", "slow", "fast", "focus", "battery"])],
+            &[(
+                "profile",
+                "Animation profile name",
+                true,
+                &["default", "slow", "fast", "focus", "battery"],
+            )],
         ));
 
         // ── niri-liquid: Special Workspace ────────────────────────────
@@ -575,7 +660,12 @@ impl ActionRegistry {
             ActionCategory::SpecialWorkspace,
             ActionSource::NiriLiquid,
             None,
-            &[("name", "Scratch column name", true, &["terminal", "music", "chat"])],
+            &[(
+                "name",
+                "Scratch column name",
+                true,
+                &["terminal", "music", "chat"],
+            )],
         ));
 
         // ── niri-liquid: Safe Mode ────────────────────────────────────
@@ -621,9 +711,7 @@ impl ActionRegistry {
         let q = query.to_lowercase();
         self.actions
             .iter()
-            .filter(|a| {
-                a.id.to_lowercase().contains(&q) || a.label.to_lowercase().contains(&q)
-            })
+            .filter(|a| a.id.to_lowercase().contains(&q) || a.label.to_lowercase().contains(&q))
             .collect()
     }
 }
@@ -712,8 +800,7 @@ mod tests {
         let results = registry.search("focus");
         assert!(!results.is_empty());
         assert!(results.iter().all(|a| {
-            a.id.to_lowercase().contains("focus")
-                || a.label.to_lowercase().contains("focus")
+            a.id.to_lowercase().contains("focus") || a.label.to_lowercase().contains("focus")
         }));
     }
 

@@ -85,7 +85,10 @@ impl RuleEngine {
             let status = if matched { "[match]" } else { "[skip]" };
             lines.push(format!(
                 "{} rule={} target={} priority={}",
-                status, rule.id, rule.target.as_str(), rule.priority
+                status,
+                rule.id,
+                rule.target.as_str(),
+                rule.priority
             ));
             if matched {
                 for action in &rule.actions {
@@ -102,8 +105,12 @@ impl RuleEngine {
         self.rules = rules;
     }
 
-    pub fn len(&self) -> usize { self.rules.len() }
-    pub fn is_empty(&self) -> bool { self.rules.is_empty() }
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
 }
 
 #[cfg(test)]
@@ -166,10 +173,14 @@ mod tests {
         let engine = RuleEngine::new(&config);
         let trace = engine.trace(RuleTarget::Window, Some("ghostty"), None);
 
-        let matched_terminal = trace.iter().any(|l| l.contains("[match]") && l.contains("terminal-glass"));
+        let matched_terminal = trace
+            .iter()
+            .any(|l| l.contains("[match]") && l.contains("terminal-glass"));
         assert!(matched_terminal);
 
-        let matched_all = trace.iter().any(|l| l.contains("[match]") && l.contains("all-windows"));
+        let matched_all = trace
+            .iter()
+            .any(|l| l.contains("[match]") && l.contains("all-windows"));
         assert!(matched_all);
     }
 }
