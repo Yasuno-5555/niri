@@ -88,6 +88,7 @@ impl TestCase for GradientArea {
             CornerRadius::default(),
             1.,
             1.,
+            0.0,
         );
         self.border
             .render(renderer, g_loc, &mut |elem| rv.push(Box::new(elem) as _));
@@ -105,6 +106,7 @@ impl TestCase for GradientArea {
                 CornerRadius::default(),
                 1.,
                 1.,
+                0.0,
             )
             .with_location(area.loc)]
             .into_iter()
