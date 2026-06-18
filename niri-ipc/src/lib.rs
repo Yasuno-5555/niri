@@ -1740,8 +1740,6 @@ pub struct LinkSessionSummary {
     pub participants: Vec<Uuid>,
 }
 
-
-
 /// Linked tile metadata exposed over IPC.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
@@ -2533,8 +2531,6 @@ pub struct ActionDescriptor {
     /// Required capability (if any) for this action to be available.
     pub capability: Option<String>,
 }
-
-
 
 /// Argument specification for an action.
 #[derive(Debug, Serialize, Deserialize, Clone)]
