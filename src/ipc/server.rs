@@ -8,8 +8,6 @@ use std::sync::{Arc, Mutex};
 use std::{env, io, process};
 
 use anyhow::Context;
-
-use crate::dispatch::parse_dispatch;
 use async_channel::{Receiver, Sender, TrySendError};
 use calloop::futures::Scheduler;
 use calloop::io::Async;
@@ -33,6 +31,7 @@ use smithay::utils::SERIAL_COUNTER;
 use smithay::wayland::shell::wlr_layer::{KeyboardInteractivity, Layer};
 
 use crate::backend::IpcOutputMap;
+use crate::dispatch::parse_dispatch;
 use crate::input::pick_window_grab::PickWindowGrab;
 use crate::layout::workspace::WorkspaceId;
 use crate::niri::State;
