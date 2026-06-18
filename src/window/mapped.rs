@@ -66,7 +66,8 @@ pub struct Mapped {
     /// Temporary progress-driven overrides applied during gesture-edge interactions.
     gesture_progress_effect: Option<GestureProgressEffect>,
 
-    /// Desaturation factor during workspace transitions (0.0 = no effect, 1.0 = fully desaturated).
+    /// Desaturation factor during workspace transitions (0.0 = no effect, 1.0 = fully
+    /// desaturated).
     workspace_desaturate: Cell<f32>,
 
     /// Whether the window rules need to be recomputed.

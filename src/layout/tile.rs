@@ -1,9 +1,12 @@
 use core::f64;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use niri_config::utils::MergeWith as _;
 use niri_config::{Color, CornerRadius, GradientInterpolation};
 use niri_ipc::WindowLayout;
+use pangocairo::cairo::{self, ImageSurface};
+use pangocairo::pango::FontDescription;
 use smithay::backend::renderer::element::{Element, Kind};
 use smithay::backend::renderer::gles::GlesRenderer;
 use smithay::utils::{Logical, Point, Rectangle, Scale, Size};
@@ -24,8 +27,7 @@ use crate::render_helpers::clipped_surface::{ClippedSurfaceRenderElement, Rounde
 use crate::render_helpers::damage::ExtraDamage;
 use crate::render_helpers::offscreen::{OffscreenBuffer, OffscreenRenderElement};
 use crate::render_helpers::primary_gpu_texture::PrimaryGpuTextureRenderElement;
-use crate::render_helpers::renderer::AsGlesRenderer;
-use crate::render_helpers::renderer::NiriRenderer;
+use crate::render_helpers::renderer::{AsGlesRenderer, NiriRenderer};
 use crate::render_helpers::resize::ResizeRenderElement;
 use crate::render_helpers::shadow::ShadowRenderElement;
 use crate::render_helpers::snapshot::RenderSnapshot;
@@ -37,9 +39,6 @@ use crate::utils::transaction::Transaction;
 use crate::utils::{
     baba_is_float_offset, round_logical_in_physical, round_logical_in_physical_max1,
 };
-use pangocairo::cairo::{self, ImageSurface};
-use pangocairo::pango::FontDescription;
-use std::cell::RefCell;
 
 /// Toplevel window with decorations.
 #[derive(Debug)]

@@ -1,5 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, Mutex};
 
+use niri_ipc::{LinkGlobalWorkspace, LinkPeer, LinkRemoteTile, LinkSessionSummary, LinkStatus};
+use smithay::utils::{Logical, Point};
 use uuid::Uuid;
 
 use crate::link::config::RuntimeLinkConfig;
@@ -18,9 +21,6 @@ use crate::link::protocol::{
 use crate::link::remote_tile::RemoteTile;
 use crate::link::security::{load_or_create_local_node_id, TrustStore};
 use crate::link::transport::TransportState;
-use niri_ipc::{LinkGlobalWorkspace, LinkPeer, LinkRemoteTile, LinkSessionSummary, LinkStatus};
-use smithay::utils::{Logical, Point};
-use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
 pub struct LinkPeerState {
