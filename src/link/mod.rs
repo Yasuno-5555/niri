@@ -18,7 +18,9 @@ mod tests {
     use uuid::Uuid;
 
     use super::input_forward::{local_to_global, owner_for_focus, owner_for_hit};
-    use super::layout_sync::{apply_op, choose_leader, tile_geometries, TileGeometry, OperationLog};
+    use super::layout_sync::{
+        apply_op, choose_leader, tile_geometries, OperationLog, TileGeometry,
+    };
     use super::persistence::{peer_match_score, restore_candidate, PersistedSession};
     use super::protocol::{
         GlobalWorkspace, LayoutOp, LayoutOpKind, Participant, PrivacyFlags, StreamState,
@@ -233,7 +235,10 @@ mod tests {
             owner_for_hit(&hit_tiles, Point::<f64, Logical>::from((0., 0.))),
             Some((tile, owner))
         );
-        assert_eq!(owner_for_hit(&hit_tiles, Point::<f64, Logical>::from((120., 0.))), None);
+        assert_eq!(
+            owner_for_hit(&hit_tiles, Point::<f64, Logical>::from((120., 0.))),
+            None
+        );
     }
 
     #[test]
@@ -397,7 +402,10 @@ mod tests {
             if !session.workspace.columns.contains(&local_tile.column_id) {
                 session.workspace.columns.push(local_tile.column_id);
             }
-            session.workspace.tiles.insert(local_tile.tile_id, local_tile.clone());
+            session
+                .workspace
+                .tiles
+                .insert(local_tile.tile_id, local_tile.clone());
         }
 
         assert_eq!(mgr.remote_tiles().len(), 1);
@@ -446,13 +454,16 @@ mod tests {
         mgr.add_remote_tile(old_tile.clone());
 
         // Add B as a disconnected peer.
-        mgr.peers.insert(node_b, super::session::LinkPeerState {
-            node_id: node_b,
-            hostname: "b".into(),
-            addr: None,
-            fingerprint: "fb".into(),
-            connected: false,
-        });
+        mgr.peers.insert(
+            node_b,
+            super::session::LinkPeerState {
+                node_id: node_b,
+                hostname: "b".into(),
+                addr: None,
+                fingerprint: "fb".into(),
+                connected: false,
+            },
+        );
 
         assert_eq!(mgr.remote_tiles().len(), 1);
 
@@ -473,7 +484,10 @@ mod tests {
             seq: 1,
             issuer: local,
             generation: 0,
-            kind: LayoutOpKind::InsertTile { tile: tile.clone(), index: 0 },
+            kind: LayoutOpKind::InsertTile {
+                tile: tile.clone(),
+                index: 0,
+            },
         };
         apply_op(&mut workspace, &insert_op);
         assert_eq!(workspace.tiles.len(), 1);
@@ -507,16 +521,30 @@ mod tests {
         let remote_tile = sample_tile(remote);
 
         let op1 = LayoutOp {
-            seq: 1, issuer: local, generation: 0,
-            kind: LayoutOpKind::InsertTile { tile: local_tile.clone(), index: 0 },
+            seq: 1,
+            issuer: local,
+            generation: 0,
+            kind: LayoutOpKind::InsertTile {
+                tile: local_tile.clone(),
+                index: 0,
+            },
         };
         let op2 = LayoutOp {
-            seq: 2, issuer: local, generation: 0,
-            kind: LayoutOpKind::InsertTile { tile: remote_tile.clone(), index: 1 },
+            seq: 2,
+            issuer: local,
+            generation: 0,
+            kind: LayoutOpKind::InsertTile {
+                tile: remote_tile.clone(),
+                index: 1,
+            },
         };
         let focus_op = LayoutOp {
-            seq: 3, issuer: local, generation: 0,
-            kind: LayoutOpKind::FocusTile { tile_id: Some(remote_tile.tile_id) },
+            seq: 3,
+            issuer: local,
+            generation: 0,
+            kind: LayoutOpKind::FocusTile {
+                tile_id: Some(remote_tile.tile_id),
+            },
         };
         apply_op(&mut workspace, &op1);
         apply_op(&mut workspace, &op2);

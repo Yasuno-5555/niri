@@ -2565,9 +2565,7 @@ impl State {
                 let addr_clone = addr.clone();
                 self.niri.link.send_hello(&addr_clone);
                 if let Some(peer) = self.niri.link.peer_list().last().cloned() {
-                    self.ipc_link_event(niri_ipc::Event::LinkPeerDiscovered {
-                        peer: peer.clone(),
-                    });
+                    self.ipc_link_event(niri_ipc::Event::LinkPeerDiscovered { peer: peer.clone() });
                     self.ipc_link_event(niri_ipc::Event::LinkPeerJoined { peer });
                 }
                 self.niri.trigger_status_update();

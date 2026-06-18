@@ -3,9 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use uuid::Uuid;
 
 use crate::link::config::RuntimeLinkConfig;
-use crate::link::discovery::{
-    start_discovery, DiscoveredPeer, DiscoveryHandle, DiscoveryState,
-};
+use crate::link::discovery::{start_discovery, DiscoveredPeer, DiscoveryHandle, DiscoveryState};
 use crate::link::layout_sync::{
     apply_op, choose_leader, hit_test_tile, next_generation, ordered_column_tiles, tile_geometries,
     OperationLog,
@@ -15,8 +13,7 @@ use crate::link::persistence::{
 };
 use crate::link::protocol::{
     Envelope, GlobalWorkspace, JoinRequest, LayoutOp, LayoutOpKind, MessageKind, NodeId,
-    Participant, PROTOCOL_VERSION, SessionId, TileMetadata, TileMetadataUpdate,
-    Viewport,
+    Participant, SessionId, TileMetadata, TileMetadataUpdate, Viewport, PROTOCOL_VERSION,
 };
 use crate::link::remote_tile::RemoteTile;
 use crate::link::security::{load_or_create_local_node_id, TrustStore};
@@ -206,7 +203,10 @@ impl LinkManager {
             let sender = msg.peer_addr.clone();
             match msg.envelope.kind {
                 MessageKind::Hello(hello) => {
-                    tracing::debug!("niri-link: Hello from {sender}: hostname={}", hello.hostname);
+                    tracing::debug!(
+                        "niri-link: Hello from {sender}: hostname={}",
+                        hello.hostname
+                    );
                     // Upsert peer.
                     let peer = LinkPeerState {
                         node_id: msg.envelope.sender_node_id,
@@ -218,7 +218,10 @@ impl LinkManager {
                     self.peers.insert(msg.envelope.sender_node_id, peer);
                 }
                 MessageKind::JoinRequest(join) => {
-                    tracing::info!("niri-link: JoinRequest from {sender}: hostname={}", join.hostname);
+                    tracing::info!(
+                        "niri-link: JoinRequest from {sender}: hostname={}",
+                        join.hostname
+                    );
                     // If pairing mode is on or already trusted, accept.
                     let node_id = msg.envelope.sender_node_id;
                     if let Some(peer) = self.peers.get_mut(&node_id) {
@@ -247,7 +250,10 @@ impl LinkManager {
                     self.transport.drain();
                 }
                 MessageKind::JoinAccept(accept) => {
-                    tracing::info!("niri-link: JoinAccept from {sender}: leader={}", accept.leader_node_id);
+                    tracing::info!(
+                        "niri-link: JoinAccept from {sender}: leader={}",
+                        accept.leader_node_id
+                    );
                     if let Some(session) = self.current_session.as_mut() {
                         session.workspace.leader_node_id = accept.leader_node_id;
                         session.workspace.generation = accept.generation;
@@ -265,7 +271,10 @@ impl LinkManager {
                     changed = true;
                 }
                 MessageKind::ViewportUpdate(vp) => {
-                    tracing::debug!("niri-link: ViewportUpdate from node={}", vp.viewport.node_id);
+                    tracing::debug!(
+                        "niri-link: ViewportUpdate from node={}",
+                        vp.viewport.node_id
+                    );
                     if let Some(session) = self.current_session.as_mut() {
                         let node = vp.viewport.node_id;
                         session
@@ -315,8 +324,11 @@ impl LinkManager {
                     // Request snapshot if seq gap.
                     if let Some(session) = self.current_session.as_ref() {
                         if hb.operation_seq > session.workspace.operation_seq + 1 {
-                            tracing::warn!("niri-link: seq gap detected (remote={} local={}), from {sender}",
-                                hb.operation_seq, session.workspace.operation_seq);
+                            tracing::warn!(
+                                "niri-link: seq gap detected (remote={} local={}), from {sender}",
+                                hb.operation_seq,
+                                session.workspace.operation_seq
+                            );
                             // TODO: send SnapshotRequest — implement via RequestSnapshot message.
                         }
                     }
@@ -369,12 +381,11 @@ impl LinkManager {
             .filter_map(|p| p.addr.clone())
             .collect();
         for addr in addrs {
-            let env = self.make_envelope(MessageKind::Heartbeat(
-                crate::link::protocol::Heartbeat {
+            let env =
+                self.make_envelope(MessageKind::Heartbeat(crate::link::protocol::Heartbeat {
                     operation_seq: op_seq,
                     generation,
-                },
-            ));
+                }));
             self.transport.enqueue(addr, env);
         }
         self.transport.drain();
@@ -727,7 +738,9 @@ impl LinkManager {
             .values()
             .filter_map(|tile| {
                 let metadata = tile.metadata();
-                let geometry = geometries.iter().find(|it| it.tile_id == metadata.tile_id)?;
+                let geometry = geometries
+                    .iter()
+                    .find(|it| it.tile_id == metadata.tile_id)?;
                 Some(LinkRemoteTile {
                     tile_id: metadata.tile_id,
                     owner_node_id: metadata.owner_node_id,

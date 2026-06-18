@@ -5,9 +5,7 @@
 //!
 //! Scripts run in a sandboxed Rhai environment with configurable permissions.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
 
 use rhai::{Engine, Scope, AST};
 
@@ -41,7 +39,6 @@ impl Default for ScriptPermissions {
 #[derive(Debug)]
 struct LoadedScript {
     name: String,
-    path: PathBuf,
     ast: AST,
     events: Vec<String>,
     permissions: ScriptPermissions,
@@ -106,7 +103,6 @@ impl ScriptEngine {
                     Ok(ast) => {
                         self.scripts.push(LoadedScript {
                             name,
-                            path,
                             ast,
                             events: vec!["*".into()], // Listen to all events by default.
                             permissions: ScriptPermissions::default(),

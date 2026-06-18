@@ -149,9 +149,9 @@ use crate::layout::workspace::{Workspace, WorkspaceId};
 use crate::layout::{
     HitType, Layout, LayoutElement as _, LayoutElementRenderElement, MonitorRenderElement,
 };
-use crate::link::{config::RuntimeLinkConfig, LinkManager};
 use crate::link::persistence::now_millis;
 use crate::link::protocol::{PrivacyFlags, StreamState, TileMetadata, Viewport};
+use crate::link::{config::RuntimeLinkConfig, LinkManager};
 use crate::niri_render_elements;
 use crate::protocols::ext_workspace::{self, ExtWorkspaceManagerState};
 use crate::protocols::foreign_toplevel::{self, ForeignToplevelManagerState};
@@ -903,8 +903,7 @@ impl State {
         }
         // Periodic heartbeat roughly every 5 seconds.
         if self.niri.link.enabled {
-            static LAST_HB: std::sync::atomic::AtomicU64 =
-                std::sync::atomic::AtomicU64::new(0);
+            static LAST_HB: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
             let now_5sec = now_millis() / 5000;
             let last = LAST_HB.load(std::sync::atomic::Ordering::Relaxed);
             if now_5sec != last {
@@ -4702,14 +4701,16 @@ impl Niri {
                         owner_node_id: self.link.local_node_id,
                         app_id,
                         title,
-                    pid: mapped.credentials().map(|credentials| credentials.pid as i32),
-                    initial_size: window_layout.window_size,
-                    current_logical_size: (size.w, size.h),
-                    column_id,
-                    column_tile_index: tile_idx.saturating_sub(1),
-                    stack_group: None,
-                    fullscreen,
-                    maximized,
+                        pid: mapped
+                            .credentials()
+                            .map(|credentials| credentials.pid as i32),
+                        initial_size: window_layout.window_size,
+                        current_logical_size: (size.w, size.h),
+                        column_id,
+                        column_tile_index: tile_idx.saturating_sub(1),
+                        stack_group: None,
+                        fullscreen,
+                        maximized,
                         floating: mapped.is_floating(),
                         last_known_alive_millis: alive_millis,
                         stream_state: StreamState::Streaming,
