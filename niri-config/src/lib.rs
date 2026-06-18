@@ -1631,6 +1631,40 @@ mod tests {
                     a: 1.0,
                 },
             },
+            link: Link {
+                enable: false,
+                listen_address: "127.0.0.1:0",
+                discovery: true,
+                pairing_mode: false,
+                trusted_nodes: [],
+                transport: LinkTransport {
+                    prefer: "quic",
+                    fallback: "tcp-tls",
+                },
+                streaming: LinkStreaming {
+                    preferred_codec: "av1,h264,raw",
+                    max_fps: 60,
+                    max_bitrate_mbps: 80,
+                    idle_fps: 5,
+                    stream_only_visible: true,
+                    stale_frame_timeout_ms: 500,
+                },
+                layout: LinkLayout {
+                    mode: "continuous-horizontal",
+                    restore_last_session: true,
+                    unlink_policy: "keep-owned-tiles",
+                    remote_tile_placeholder: true,
+                    animate_link_transition: true,
+                },
+                input: LinkInput {
+                    forward_keyboard: true,
+                    forward_pointer: true,
+                    forward_scroll: true,
+                    forward_touch: false,
+                    forward_tablet: false,
+                    remote_focus_follows_pointer: true,
+                },
+            },
             prefer_no_csd: true,
             cursor: Cursor {
                 xcursor_theme: "breeze_cursors",
@@ -2659,6 +2693,18 @@ mod tests {
             script: ScriptConfig {
                 enable: false,
                 directory: None,
+            },
+            performance_budget: PerformanceBudget {
+                target_fps: 60,
+                max_blur_passes: 3,
+                disable_dispersion_on_battery: true,
+                downgrade_material_on_frame_drop: false,
+                quality_levels: [
+                    "hologram-film",
+                    "liquid-mocha",
+                    "acrylic-smoke",
+                    "safe-solid",
+                ],
             },
         }
         "#);
