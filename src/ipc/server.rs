@@ -625,6 +625,54 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
                 .map_err(|_| String::from("error managing scripts"))?;
             Response::Scripts(lines)
         }
+        Request::LinkStatus => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let _ = tx.send_blocking(Response::LinkStatus(state.niri.link.status()));
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error getting link status"))?
+        }
+        Request::LinkPeers => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let _ = tx.send_blocking(Response::LinkPeers(state.niri.link.peer_list()));
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error getting link peers"))?
+        }
+        Request::LinkSessions => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let _ =
+                    tx.send_blocking(Response::LinkSessions(state.niri.link.session_summaries()));
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error getting link sessions"))?
+        }
+        Request::LinkGlobalWorkspace => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let _ = tx.send_blocking(Response::LinkGlobalWorkspace(
+                    state.niri.link.global_workspace(),
+                ));
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error getting link workspace"))?
+        }
+        Request::LinkRemoteTiles => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let _ = tx.send_blocking(Response::LinkRemoteTiles(state.niri.link.remote_tiles()));
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error getting remote tiles"))?
+        }
     };
 
     Ok(response)
@@ -1110,6 +1158,13 @@ impl State {
 
         let event = Event::ScreenshotCaptured { path };
         state.apply(event.clone());
+        server.send_event(event);
+    }
+
+    pub fn ipc_link_event(&mut self, event: Event) {
+        let Some(server) = &self.niri.ipc_server else {
+            return;
+        };
         server.send_event(event);
     }
 }
