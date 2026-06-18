@@ -676,7 +676,10 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
         Request::LinkViewports => {
             let (tx, rx) = async_channel::bounded(1);
             ctx.event_loop.insert_idle(move |state| {
-                let viewports = state.niri.link.global_workspace()
+                let viewports = state
+                    .niri
+                    .link
+                    .global_workspace()
                     .map(|gw| gw.viewports)
                     .unwrap_or_default();
                 let _ = tx.send_blocking(Response::LinkViewports(viewports));
