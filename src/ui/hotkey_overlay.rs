@@ -494,6 +494,21 @@ pub(crate) fn action_name(action: &Action) -> String {
         Action::SetMaterial(material) => format!("Set Material: {material}"),
         Action::ToggleActionPalette => String::from("Toggle Action Palette"),
         Action::ToggleSafeMode => String::from("Toggle Safe Mode"),
+        Action::LinkEnable => String::from("Enable niri-link"),
+        Action::LinkDisable => String::from("Disable niri-link"),
+        Action::LinkToggle => String::from("Toggle niri-link"),
+        Action::LinkJoin(addr) => format!("Join Link Peer: {addr}"),
+        Action::LinkLeave => String::from("Leave Link Session"),
+        Action::LinkPair(node) => match node {
+            Some(node) => format!("Pair Link Node: {node}"),
+            None => String::from("Enable Link Pairing Mode"),
+        },
+        Action::LinkUnpair(node) => format!("Unpair Link Node: {node}"),
+        Action::LinkTrustNode(node) => format!("Trust Link Node: {node}"),
+        Action::LinkForgetNode(node) => format!("Forget Link Node: {node}"),
+        Action::LinkRestoreSession(session) => format!("Restore Link Session: {session}"),
+        Action::LinkSetLeader(node) => format!("Set Link Leader: {node}"),
+        Action::LinkStatus => String::from("Show Link Status"),
         _ => fallback_action_name(action),
     }
 }
