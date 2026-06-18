@@ -17,6 +17,7 @@ regex = "1.12.3"
 smithay = { workspace = true, features = ["backend_libinput"] }
 tracing.workspace = true
 tracy-client.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

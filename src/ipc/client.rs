@@ -62,6 +62,11 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                 _ => niri_ipc::ScriptsAction::List,
             },
         },
+        Msg::LinkStatus => Request::LinkStatus,
+        Msg::LinkPeers => Request::LinkPeers,
+        Msg::LinkSessions => Request::LinkSessions,
+        Msg::LinkGlobalWorkspace => Request::LinkGlobalWorkspace,
+        Msg::LinkRemoteTiles => Request::LinkRemoteTiles,
         Msg::Dispatch { args } => {
             let action = parse_dispatch(&args).context("error parsing dispatch command")?;
             Request::Action(action)
@@ -523,6 +528,9 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                     Event::CastStopped { stream_id } => {
                         println!("Cast stopped: stream id {stream_id}");
                     }
+                    other => {
+                        println!("Event: {other:?}");
+                    }
                 }
             }
         }
@@ -658,6 +666,82 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
             };
             for line in &lines {
                 println!("{line}");
+            }
+        }
+        Msg::LinkStatus => {
+            let Response::LinkStatus(status) = response else {
+                bail!("unexpected response: expected LinkStatus, got {response:?}");
+            };
+            if json {
+                println!("{}", serde_json::to_string(&status)?);
+            } else {
+                println!("niri-link status:");
+                println!("  enabled:          {}", status.enabled);
+                println!("  session active:   {}", status.session_active);
+                if let Some(sid) = status.session_id {
+                    println!("  session ID:       {sid}");
+                }
+                println!("  local node ID:    {}", status.local_node_id);
+                if let Some(leader) = status.leader_node_id {
+                    println!("  leader node ID:   {leader}");
+                }
+                println!("  peers connected:  {}", status.peer_count);
+                println!("  remote tiles:     {}", status.remote_tile_count);
+                println!("  operation seq:    {}", status.operation_seq);
+                println!("  generation:       {}", status.generation);
+                println!("  message:          {}", status.message);
+            }
+        }
+        Msg::LinkPeers => {
+            let Response::LinkPeers(peers) = response else {
+                bail!("unexpected response: expected LinkPeers, got {response:?}");
+            };
+            if json {
+                println!("{}", serde_json::to_string(&peers)?);
+            } else if peers.is_empty() {
+                println!("No link peers.");
+            } else {
+                for peer in &peers {
+                    println!("{:?}", peer);
+                }
+            }
+        }
+        Msg::LinkSessions => {
+            let Response::LinkSessions(sessions) = response else {
+                bail!("unexpected response: expected LinkSessions, got {response:?}");
+            };
+            if json {
+                println!("{}", serde_json::to_string(&sessions)?);
+            } else if sessions.is_empty() {
+                println!("No persisted link sessions.");
+            } else {
+                for session in &sessions {
+                    println!("{:?}", session);
+                }
+            }
+        }
+        Msg::LinkGlobalWorkspace => {
+            let Response::LinkGlobalWorkspace(workspace) = response else {
+                bail!("unexpected response: expected LinkGlobalWorkspace, got {response:?}");
+            };
+            if json {
+                println!("{}", serde_json::to_string(&workspace)?);
+            } else {
+                println!("{:#?}", workspace);
+            }
+        }
+        Msg::LinkRemoteTiles => {
+            let Response::LinkRemoteTiles(tiles) = response else {
+                bail!("unexpected response: expected LinkRemoteTiles, got {response:?}");
+            };
+            if json {
+                println!("{}", serde_json::to_string(&tiles)?);
+            } else if tiles.is_empty() {
+                println!("No remote tiles.");
+            } else {
+                for tile in &tiles {
+                    println!("{:?}", tile);
+                }
             }
         }
     }
