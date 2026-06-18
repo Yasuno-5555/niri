@@ -1,8 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use smithay::utils::Logical;
-use smithay::utils::Size;
+use smithay::utils::{Logical, Size};
 use uuid::Uuid;
 
 pub type NodeId = Uuid;

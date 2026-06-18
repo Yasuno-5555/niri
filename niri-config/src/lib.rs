@@ -46,18 +46,15 @@ pub mod utils;
 pub mod window_rule;
 pub mod workspace;
 
-pub use crate::animations::{Animation, Animations};
-pub use crate::animations::{AnimationPreset, AnimationProfile};
-pub use crate::appearance::*;
-pub use crate::appearance::{EffectPreset, Landmark, Material};
+pub use crate::animations::{Animation, AnimationPreset, AnimationProfile, Animations};
+pub use crate::appearance::{EffectPreset, Landmark, Material, *};
 pub use crate::binds::*;
 pub use crate::debug::Debug;
 pub use crate::error::{ConfigIncludeError, ConfigParseResult};
 pub use crate::gestures::{GestureEdge, GestureProgressMap, Gestures};
 pub use crate::input::{Input, ModKey, ScrollMethod, TrackLayout, WarpMouseToFocusMode, Xkb};
 pub use crate::layer_rule::LayerRule;
-pub use crate::layout::ScratchColumn;
-pub use crate::layout::*;
+pub use crate::layout::{ScratchColumn, *};
 pub use crate::link::{Link, LinkInput, LinkLayout, LinkPart, LinkStreaming, LinkTransport};
 pub use crate::liquid::{
     ActionArgSpec, ActionCategory, ActionDescriptor, ActionSource, AnimationCurve,

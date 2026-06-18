@@ -71,7 +71,8 @@ impl ModeHud {
             from,
             to,
             0.,
-            c.animations.config_notification_open_close.0, // Reuse config notification animation settings
+            c.animations.config_notification_open_close.0, /* Reuse config notification
+                                                            * animation settings */
         )
     }
 
