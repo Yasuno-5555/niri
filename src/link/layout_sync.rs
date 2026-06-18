@@ -259,7 +259,10 @@ pub fn ordered_column_tiles(workspace: &GlobalWorkspace) -> BTreeMap<ColumnId, V
     let mut tiles: Vec<_> = workspace.tiles.values().collect();
     tiles.sort_by_key(|tile| (tile.column_id, tile.column_tile_index, tile.tile_id));
     for tile in tiles {
-        by_column.entry(tile.column_id).or_default().push(tile.tile_id);
+        by_column
+            .entry(tile.column_id)
+            .or_default()
+            .push(tile.tile_id);
     }
     by_column
 }

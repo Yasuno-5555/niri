@@ -74,7 +74,10 @@ impl TransportState {
     /// Incoming envelopes are pushed into the shared incoming queue.
     pub fn start_listener(&mut self, bind_addr: &str) -> io::Result<u16> {
         if self.listener_running {
-            return Err(io::Error::new(io::ErrorKind::AlreadyExists, "listener already running"));
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "listener already running",
+            ));
         }
         let listener = TcpListener::bind(bind_addr)?;
         let port = listener.local_addr()?.port();
@@ -112,7 +115,9 @@ fn send_and_maybe_recv(addr: String, envelope: Envelope, incoming: IncomingQueue
     };
 
     let mut stream = match TcpStream::connect_timeout(
-        &addr.parse().unwrap_or_else(|_| "127.0.0.1:0".parse().unwrap()),
+        &addr
+            .parse()
+            .unwrap_or_else(|_| "127.0.0.1:0".parse().unwrap()),
         Duration::from_millis(2000),
     ) {
         Ok(s) => s,
@@ -124,7 +129,10 @@ fn send_and_maybe_recv(addr: String, envelope: Envelope, incoming: IncomingQueue
 
     // Write length-prefixed envelope.
     let len = (encoded.len() as u32).to_be_bytes();
-    if let Err(e) = stream.write_all(&len).and_then(|_| stream.write_all(&encoded)) {
+    if let Err(e) = stream
+        .write_all(&len)
+        .and_then(|_| stream.write_all(&encoded))
+    {
         warn!("niri-link: TCP write to {addr} failed: {e}");
         return;
     }

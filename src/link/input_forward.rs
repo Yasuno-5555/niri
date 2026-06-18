@@ -58,7 +58,8 @@ pub fn owner_for_hit(
     tiles: &[TileGeometry],
     global_pos: Point<f64, Logical>,
 ) -> Option<(TileId, NodeId)> {
-    tiles.iter()
+    tiles
+        .iter()
         .find(|tile| {
             global_pos.x >= tile.logical_x
                 && global_pos.y >= tile.logical_y
