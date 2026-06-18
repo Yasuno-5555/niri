@@ -154,7 +154,7 @@ pub enum Request {
     /// Request the current global linked workspace snapshot.
     LinkGlobalWorkspace,
     /// Request the current remote tile set.
-    LinkTiles,
+    LinkRemoteTiles,
     /// Request the list of active linked viewports.
     LinkViewports,
     /// Enable link mode.
@@ -1738,20 +1738,7 @@ pub struct LinkSessionSummary {
     pub participants: Vec<Uuid>,
 }
 
-/// Linked viewport description.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-pub struct LinkViewport {
-    pub node_id: Uuid,
-    pub output_name: String,
-    pub global_x: f64,
-    pub global_y: f64,
-    pub logical_width: f64,
-    pub logical_height: f64,
-    pub scale: f64,
-    pub transform: i32,
-    pub refresh_rate_millihz: Option<u32>,
-}
+
 
 /// Linked tile metadata exposed over IPC.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -2545,18 +2532,7 @@ pub struct ActionDescriptor {
     pub capability: Option<String>,
 }
 
-/// Script management action.
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
-pub enum ScriptsAction {
-    /// List loaded scripts.
-    #[default]
-    List,
-    /// Reload all scripts from disk.
-    Reload,
-    /// Show last errors.
-    Errors,
-}
+
 
 /// Argument specification for an action.
 #[derive(Debug, Serialize, Deserialize, Clone)]
