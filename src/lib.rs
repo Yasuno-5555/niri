@@ -16,6 +16,7 @@ pub mod input;
 pub mod ipc;
 pub mod layer;
 pub mod layout;
+pub mod link;
 pub mod liquid;
 pub mod niri;
 pub mod protocols;

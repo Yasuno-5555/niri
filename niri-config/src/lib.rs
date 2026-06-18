@@ -37,6 +37,7 @@ pub mod gestures;
 pub mod input;
 pub mod layer_rule;
 pub mod layout;
+pub mod link;
 pub mod liquid;
 pub mod misc;
 pub mod output;
@@ -57,6 +58,7 @@ pub use crate::input::{Input, ModKey, ScrollMethod, TrackLayout, WarpMouseToFocu
 pub use crate::layer_rule::LayerRule;
 pub use crate::layout::ScratchColumn;
 pub use crate::layout::*;
+pub use crate::link::{Link, LinkInput, LinkLayout, LinkPart, LinkStreaming, LinkTransport};
 pub use crate::liquid::{
     ActionArgSpec, ActionCategory, ActionDescriptor, ActionSource, AnimationCurve,
     AnimationCurveDoc, AnimationGraphDoc, AnimationNode, AnimationNodeDoc, Capability,
@@ -85,6 +87,7 @@ pub struct Config {
     pub spawn_at_startup: Vec<SpawnAtStartup>,
     pub spawn_sh_at_startup: Vec<SpawnShAtStartup>,
     pub layout: Layout,
+    pub link: Link,
     pub prefer_no_csd: bool,
     pub cursor: Cursor,
     pub screenshot_path: ScreenshotPath,
@@ -275,6 +278,7 @@ where
                 "blur" => m_merge!(blur),
                 "gestures" => m_merge!(gestures),
                 "overview" => m_merge!(overview),
+                "link" => m_merge!(link),
                 "xwayland-satellite" => m_merge!(xwayland_satellite),
                 "switch-events" => m_merge!(switch_events),
                 "debug" => m_merge!(debug),

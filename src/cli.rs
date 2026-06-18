@@ -133,6 +133,16 @@ pub enum Msg {
         #[arg(default_value = "list")]
         action: String,
     },
+    /// Print current niri-link status.
+    LinkStatus,
+    /// List known niri-link peers.
+    LinkPeers,
+    /// List persisted niri-link sessions.
+    LinkSessions,
+    /// Print the current linked global workspace snapshot.
+    LinkGlobalWorkspace,
+    /// List current remote tiles.
+    LinkRemoteTiles,
     /// Execute a Hyprland-compatible dispatch command.
     Dispatch {
         /// The dispatch command and arguments.
