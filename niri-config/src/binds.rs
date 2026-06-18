@@ -398,6 +398,18 @@ pub enum Action {
     SetMaterial(#[knuffel(argument)] String),
     ToggleActionPalette,
     ToggleSafeMode,
+    LinkEnable,
+    LinkDisable,
+    LinkToggle,
+    LinkJoin(#[knuffel(argument)] String),
+    LinkLeave,
+    LinkPair(#[knuffel(argument)] Option<String>),
+    LinkUnpair(#[knuffel(argument)] String),
+    LinkTrustNode(#[knuffel(argument)] String),
+    LinkForgetNode(#[knuffel(argument)] String),
+    LinkRestoreSession(#[knuffel(argument)] String),
+    LinkSetLeader(#[knuffel(argument)] String),
+    LinkStatus,
 }
 
 impl From<niri_ipc::Action> for Action {
@@ -714,6 +726,20 @@ impl From<niri_ipc::Action> for Action {
             niri_ipc::Action::SetMaterial { material } => Self::SetMaterial(material),
             niri_ipc::Action::ToggleActionPalette {} => Self::ToggleActionPalette,
             niri_ipc::Action::ToggleSafeMode {} => Self::ToggleSafeMode,
+            niri_ipc::Action::LinkEnable {} => Self::LinkEnable,
+            niri_ipc::Action::LinkDisable {} => Self::LinkDisable,
+            niri_ipc::Action::LinkToggle {} => Self::LinkToggle,
+            niri_ipc::Action::LinkJoin { addr } => Self::LinkJoin(addr),
+            niri_ipc::Action::LinkLeave {} => Self::LinkLeave,
+            niri_ipc::Action::LinkPair { node } => Self::LinkPair(node),
+            niri_ipc::Action::LinkUnpair { node } => Self::LinkUnpair(node),
+            niri_ipc::Action::LinkTrustNode { node } => Self::LinkTrustNode(node),
+            niri_ipc::Action::LinkForgetNode { node } => Self::LinkForgetNode(node),
+            niri_ipc::Action::LinkRestoreSession { session } => {
+                Self::LinkRestoreSession(session.to_string())
+            }
+            niri_ipc::Action::LinkSetLeader { node } => Self::LinkSetLeader(node.to_string()),
+            niri_ipc::Action::LinkStatus {} => Self::LinkStatus,
         }
     }
 }

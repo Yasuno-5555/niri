@@ -2526,6 +2526,117 @@ impl State {
                     }
                 }
             }
+            Action::LinkEnable => {
+                self.niri.link.enable();
+                self.niri.start_link_network_if_needed();
+                let session_id = self.niri.link.status().session_id;
+                self.ipc_link_event(niri_ipc::Event::LinkEnabled { session_id });
+                self.niri.queue_redraw_all();
+                self.niri.trigger_status_update();
+                self.niri.mode_hud.trigger(String::from("LINK · ENABLED"));
+            }
+            Action::LinkDisable => {
+                let session_id = self.niri.link.disable();
+                if let Some(session_id) = session_id {
+                    self.ipc_link_event(niri_ipc::Event::LinkSessionPersisted { session_id });
+                }
+                self.ipc_link_event(niri_ipc::Event::LinkDisabled { session_id });
+                self.niri.queue_redraw_all();
+                self.niri.trigger_status_update();
+                self.niri.mode_hud.trigger(String::from("LINK · DISABLED"));
+            }
+            Action::LinkToggle => {
+                let was_enabled = self.niri.link.enabled;
+                self.niri.link.toggle();
+                let session_id = self.niri.link.status().session_id;
+                let event = if was_enabled {
+                    niri_ipc::Event::LinkDisabled { session_id }
+                } else {
+                    niri_ipc::Event::LinkEnabled { session_id }
+                };
+                self.ipc_link_event(event);
+                self.niri.queue_redraw_all();
+                self.niri.trigger_status_update();
+            }
+            Action::LinkJoin(ref addr) => {
+                self.niri.link.join_addr(addr.clone());
+                // Ensure network is running, then send Hello to the target.
+                self.niri.start_link_network_if_needed();
+                let addr_clone = addr.clone();
+                self.niri.link.send_hello(&addr_clone);
+                if let Some(peer) = self.niri.link.peer_list().last().cloned() {
+                    self.ipc_link_event(niri_ipc::Event::LinkPeerDiscovered {
+                        peer: peer.clone(),
+                    });
+                    self.ipc_link_event(niri_ipc::Event::LinkPeerJoined { peer });
+                }
+                self.niri.trigger_status_update();
+                self.niri.mode_hud.trigger(format!("LINK · JOIN {addr}"));
+            }
+            Action::LinkLeave => {
+                let status = self.niri.link.status();
+                self.niri.link.leave();
+                if let Some(session_id) = status.session_id {
+                    self.ipc_link_event(niri_ipc::Event::LinkDisabled {
+                        session_id: Some(session_id),
+                    });
+                }
+                self.niri.queue_redraw_all();
+                self.niri.trigger_status_update();
+            }
+            Action::LinkPair(ref node) => {
+                let _ = self.niri.link.pair(node.clone());
+                self.niri.mode_hud.trigger(match node {
+                    Some(node) => format!("LINK · PAIRED {node}"),
+                    None => String::from("LINK · PAIRING MODE"),
+                });
+            }
+            Action::LinkUnpair(ref node) => {
+                let _ = self.niri.link.unpair(node);
+                self.niri
+                    .mode_hud
+                    .trigger(format!("LINK · UNPAIRED {node}"));
+            }
+            Action::LinkTrustNode(ref node) => {
+                let _ = self.niri.link.trust_node(node);
+                self.niri.mode_hud.trigger(format!("LINK · TRUST {node}"));
+            }
+            Action::LinkForgetNode(ref node) => {
+                let _ = self.niri.link.forget_node(node);
+                self.niri.mode_hud.trigger(format!("LINK · FORGET {node}"));
+            }
+            Action::LinkRestoreSession(ref session) => {
+                if let Ok(session) = uuid::Uuid::parse_str(session) {
+                    let restored = self
+                        .niri
+                        .link
+                        .restore_session(session)
+                        .ok()
+                        .unwrap_or(false);
+                    if restored {
+                        self.ipc_link_event(niri_ipc::Event::LinkEnabled {
+                            session_id: Some(session),
+                        });
+                    }
+                }
+                self.niri.queue_redraw_all();
+                self.niri.trigger_status_update();
+            }
+            Action::LinkSetLeader(ref node) => {
+                if let Ok(node) = uuid::Uuid::parse_str(node) {
+                    self.niri.link.set_leader(node);
+                    let generation = self.niri.link.status().generation;
+                    self.ipc_link_event(niri_ipc::Event::LinkLeaderChanged {
+                        leader_node_id: node,
+                        generation,
+                    });
+                }
+                self.niri.trigger_status_update();
+            }
+            Action::LinkStatus => {
+                let status = self.niri.link.status();
+                self.niri.mode_hud.trigger(status.message);
+            }
             Action::ToggleActionPalette | Action::ToggleSafeMode => {
                 use crate::liquid::dispatcher::DispatchSource;
                 let result = self.niri.dispatch(&action, DispatchSource::Keybind);

@@ -57,6 +57,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub mod socket;
 pub mod state;
@@ -143,6 +144,16 @@ pub enum Request {
         #[serde(default)]
         action: ScriptsAction,
     },
+    /// Request the current niri-link state.
+    LinkStatus,
+    /// Request the known niri-link peers.
+    LinkPeers,
+    /// Request persisted niri-link sessions.
+    LinkSessions,
+    /// Request the current global linked workspace snapshot.
+    LinkGlobalWorkspace,
+    /// Request the current remote tile set.
+    LinkRemoteTiles,
 }
 
 /// Reply from niri to client.
@@ -201,6 +212,16 @@ pub enum Response {
     TraceRules(Vec<String>),
     /// Script engine status.
     Scripts(Vec<String>),
+    /// Current niri-link state.
+    LinkStatus(LinkStatus),
+    /// Known niri-link peers.
+    LinkPeers(Vec<LinkPeer>),
+    /// Persisted niri-link sessions.
+    LinkSessions(Vec<LinkSessionSummary>),
+    /// Current global linked workspace.
+    LinkGlobalWorkspace(Option<LinkGlobalWorkspace>),
+    /// Current remote tiles.
+    LinkRemoteTiles(Vec<LinkRemoteTile>),
 }
 
 /// Overview information.
@@ -1001,6 +1022,58 @@ pub enum Action {
     ToggleActionPalette,
     /// Toggle safe mode (emergency escape hatch).
     ToggleSafeMode,
+    /// Enable niri-link.
+    LinkEnable {},
+    /// Disable niri-link.
+    LinkDisable {},
+    /// Toggle niri-link.
+    LinkToggle {},
+    /// Join a peer by address.
+    LinkJoin {
+        /// Host:port to connect to.
+        #[cfg_attr(feature = "clap", arg(long))]
+        addr: String,
+    },
+    /// Leave the current link session.
+    LinkLeave {},
+    /// Pair with a node or enable pairing mode when omitted.
+    LinkPair {
+        /// Optional node identifier or fingerprint.
+        #[cfg_attr(feature = "clap", arg(long))]
+        node: Option<String>,
+    },
+    /// Remove a paired node.
+    LinkUnpair {
+        /// Node identifier or fingerprint.
+        #[cfg_attr(feature = "clap", arg(long))]
+        node: String,
+    },
+    /// Trust a node explicitly.
+    LinkTrustNode {
+        /// Node identifier or fingerprint.
+        #[cfg_attr(feature = "clap", arg(long))]
+        node: String,
+    },
+    /// Forget a trusted node.
+    LinkForgetNode {
+        /// Node identifier or fingerprint.
+        #[cfg_attr(feature = "clap", arg(long))]
+        node: String,
+    },
+    /// Restore a persisted linked session.
+    LinkRestoreSession {
+        /// Session id to restore.
+        #[cfg_attr(feature = "clap", arg(long))]
+        session: Uuid,
+    },
+    /// Override the current leader node.
+    LinkSetLeader {
+        /// Node id to promote.
+        #[cfg_attr(feature = "clap", arg(long))]
+        node: Uuid,
+    },
+    /// Print the current link status through the action path.
+    LinkStatus {},
 }
 
 /// Change in window or column size.
@@ -1535,6 +1608,114 @@ pub struct Workspace {
     pub active_window_id: Option<u64>,
 }
 
+/// Runtime state of niri-link.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct LinkStatus {
+    /// Whether link mode is enabled locally.
+    pub enabled: bool,
+    /// Whether a session is currently active.
+    pub session_active: bool,
+    /// Current session id.
+    pub session_id: Option<Uuid>,
+    /// Local node id.
+    pub local_node_id: Uuid,
+    /// Current leader node id.
+    pub leader_node_id: Option<Uuid>,
+    /// Monotonic operation sequence applied locally.
+    pub operation_seq: u64,
+    /// Global session generation.
+    pub generation: u64,
+    /// Count of peers currently known.
+    pub peer_count: usize,
+    /// Count of remote tiles currently materialized.
+    pub remote_tile_count: usize,
+    /// Human-readable status line.
+    pub message: String,
+}
+
+/// Known link peer.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct LinkPeer {
+    /// Node id.
+    pub node_id: Uuid,
+    /// Hostname advertised by the peer.
+    pub hostname: String,
+    /// Connection address, if known.
+    pub addr: Option<String>,
+    /// Whether the peer is trusted.
+    pub trusted: bool,
+    /// Whether the peer is currently connected.
+    pub connected: bool,
+    /// Whether the peer is currently leader.
+    pub is_leader: bool,
+}
+
+/// Persisted session summary.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct LinkSessionSummary {
+    /// Session id.
+    pub session_id: Uuid,
+    /// Session generation.
+    pub generation: u64,
+    /// Persist timestamp.
+    pub timestamp: Timestamp,
+    /// Participant node ids.
+    pub participants: Vec<Uuid>,
+}
+
+/// Linked viewport description.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct LinkViewport {
+    pub node_id: Uuid,
+    pub output_name: String,
+    pub global_x: f64,
+    pub global_y: f64,
+    pub logical_width: f64,
+    pub logical_height: f64,
+    pub scale: f64,
+    pub transform: i32,
+    pub refresh_rate_millihz: Option<u32>,
+}
+
+/// Linked tile metadata exposed over IPC.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct LinkRemoteTile {
+    pub tile_id: Uuid,
+    pub owner_node_id: Uuid,
+    pub app_id: Option<String>,
+    pub title: Option<String>,
+    pub pid: Option<i32>,
+    pub column_id: Uuid,
+    pub logical_x: f64,
+    pub logical_y: f64,
+    pub logical_width: f64,
+    pub logical_height: f64,
+    pub stream_state: String,
+    pub last_known_alive: Option<Timestamp>,
+    pub placeholder: bool,
+    pub disconnected: bool,
+}
+
+/// Snapshot of the current linked workspace.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct LinkGlobalWorkspace {
+    pub session_id: Uuid,
+    pub generation: u64,
+    pub operation_seq: u64,
+    pub leader_node_id: Uuid,
+    pub participants: Vec<Uuid>,
+    pub focused_tile: Option<Uuid>,
+    pub columns: Vec<Uuid>,
+    pub tiles: Vec<LinkRemoteTile>,
+    pub viewports: Vec<LinkViewport>,
+}
+
 /// Configured keyboard layouts.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
@@ -1797,6 +1978,48 @@ pub enum Event {
         /// Stream ID of the stopped screencast.
         stream_id: u64,
     },
+    /// niri-link was enabled.
+    LinkEnabled { session_id: Option<Uuid> },
+    /// niri-link was disabled.
+    LinkDisabled { session_id: Option<Uuid> },
+    /// A peer was discovered.
+    LinkPeerDiscovered { peer: LinkPeer },
+    /// A peer joined the session.
+    LinkPeerJoined { peer: LinkPeer },
+    /// A peer left the session.
+    LinkPeerLeft { node_id: Uuid },
+    /// The session leader changed.
+    LinkLeaderChanged {
+        leader_node_id: Uuid,
+        generation: u64,
+    },
+    /// The global linked layout changed.
+    LinkGlobalLayoutChanged {
+        session_id: Uuid,
+        operation_seq: u64,
+    },
+    /// A remote tile was created.
+    LinkRemoteTileCreated { tile: LinkRemoteTile },
+    /// A remote tile was updated.
+    LinkRemoteTileUpdated { tile: LinkRemoteTile },
+    /// A remote tile was closed.
+    LinkRemoteTileClosed { tile_id: Uuid },
+    /// A stream was started.
+    LinkStreamStarted { tile_id: Uuid },
+    /// A stream was stopped.
+    LinkStreamStopped { tile_id: Uuid },
+    /// A stream degraded.
+    LinkStreamDegraded { tile_id: Uuid, reason: String },
+    /// Input was forwarded to a remote owner.
+    LinkInputForwarded {
+        tile_id: Uuid,
+        owner_node_id: Uuid,
+        kind: String,
+    },
+    /// A linked session was persisted.
+    LinkSessionPersisted { session_id: Uuid },
+    /// A link-related error occurred.
+    LinkError { message: String },
 }
 
 impl From<Duration> for Timestamp {
