@@ -762,8 +762,9 @@ fn category_order(cat: &ActionCategory) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use niri_config::Config;
+
+    use super::*;
 
     #[test]
     fn registry_has_all_categories() {

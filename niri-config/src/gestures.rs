@@ -1,7 +1,8 @@
+use smithay::utils::{Logical, Point, Size};
+
 use crate::binds::{Action, WorkspaceReference};
 use crate::utils::MergeWith;
 use crate::FloatOrInt;
-use smithay::utils::{Logical, Point, Size};
 
 #[derive(knuffel::Decode)]
 struct GestureEdgeActionDoc {
