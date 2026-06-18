@@ -673,6 +673,92 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
                 .await
                 .map_err(|_| String::from("error getting remote tiles"))?
         }
+        Request::LinkViewports => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let viewports = state.niri.link.global_workspace()
+                    .map(|gw| gw.viewports)
+                    .unwrap_or_default();
+                let _ = tx.send_blocking(Response::LinkViewports(viewports));
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error getting link viewports"))?
+        }
+        Request::LinkEnable { node_id: _ } => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                state.niri.link.enable();
+                let _ = tx.send_blocking(Response::Handled);
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error enabling link"))?
+        }
+        Request::LinkDisable => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                state.niri.link.disable();
+                let _ = tx.send_blocking(Response::Handled);
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error disabling link"))?
+        }
+        Request::LinkConnect { addr } => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                state.niri.link.join_addr(addr);
+                let _ = tx.send_blocking(Response::Handled);
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error connecting to peer"))?
+        }
+        Request::LinkDisconnect { node_id } => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                if let Some(peer) = state.niri.link.peers.get_mut(&node_id) {
+                    peer.connected = false;
+                }
+                let _ = tx.send_blocking(Response::Handled);
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error disconnecting peer"))?
+        }
+        Request::LinkTrust { node_id } => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let node_id_str = node_id.to_string();
+                let _ = state.niri.link.trust_node(&node_id_str);
+                let _ = tx.send_blocking(Response::Handled);
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error trusting node"))?
+        }
+        Request::LinkUntrust { node_id } => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                let node_id_str = node_id.to_string();
+                let _ = state.niri.link.unpair(&node_id_str);
+                let _ = tx.send_blocking(Response::Handled);
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error untrusting node"))?
+        }
+        Request::LinkSetPairing { enabled } => {
+            let (tx, rx) = async_channel::bounded(1);
+            ctx.event_loop.insert_idle(move |state| {
+                state.niri.link.pairing_mode = enabled;
+                let _ = tx.send_blocking(Response::Handled);
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error setting pairing mode"))?
+        }
     };
 
     Ok(response)
