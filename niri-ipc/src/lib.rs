@@ -141,6 +141,7 @@ pub enum Request {
     TraceRules,
     /// Manage scripts (list, reload, errors).
     Scripts {
+        /// The script action to perform.
         #[serde(default)]
         action: ScriptsAction,
     },
@@ -153,7 +154,78 @@ pub enum Request {
     /// Request the current global linked workspace snapshot.
     LinkGlobalWorkspace,
     /// Request the current remote tile set.
-    LinkRemoteTiles,
+    LinkTiles,
+    /// Request the list of active linked viewports.
+    LinkViewports,
+    /// Enable link mode.
+    LinkEnable {
+        /// Optional node ID.
+        node_id: Option<Uuid>,
+    },
+    /// Disable link mode.
+    LinkDisable,
+    /// Connect to a peer.
+    LinkConnect {
+        /// Peer socket address (host:port).
+        addr: String,
+    },
+    /// Disconnect from a peer.
+    LinkDisconnect {
+        /// Unique node ID of the peer.
+        node_id: Uuid,
+    },
+    /// Add a peer node to the trust store.
+    LinkTrust {
+        /// Unique node ID of the peer.
+        node_id: Uuid,
+    },
+    /// Remove a peer node from the trust store.
+    LinkUntrust {
+        /// Unique node ID of the peer.
+        node_id: Uuid,
+    },
+    /// Set pairing mode active.
+    LinkSetPairing {
+        /// Whether pairing mode should be enabled.
+        enabled: bool,
+    },
+}
+
+/// Request sub-actions for Rhai scripting.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub enum ScriptsAction {
+    /// List all loaded scripts and their statuses.
+    #[default]
+    List,
+    /// Reload all scripts from the script directory.
+    Reload,
+    /// Show the last errors reported by the scripting engine.
+    Errors,
+}
+
+/// Active viewport of a linked compositor node.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+pub struct LinkViewport {
+    /// Unique node ID of the viewport owner.
+    pub node_id: Uuid,
+    /// Name of the physical output.
+    pub output_name: String,
+    /// Global X coordinate.
+    pub global_x: f64,
+    /// Global Y coordinate.
+    pub global_y: f64,
+    /// Logical width.
+    pub logical_width: f64,
+    /// Logical height.
+    pub logical_height: f64,
+    /// Current output scale.
+    pub scale: f64,
+    /// Current output transform.
+    pub transform: i32,
+    /// Refresh rate in millihertz, if available.
+    pub refresh_rate_millihz: Option<u32>,
 }
 
 /// Reply from niri to client.
@@ -1685,19 +1757,33 @@ pub struct LinkViewport {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct LinkRemoteTile {
+    /// The unique identifier of the tile.
     pub tile_id: Uuid,
+    /// The unique identifier of the owner node.
     pub owner_node_id: Uuid,
+    /// The application ID of the tile window.
     pub app_id: Option<String>,
+    /// The title of the tile window.
     pub title: Option<String>,
+    /// The process ID of the window client.
     pub pid: Option<i32>,
+    /// The identifier of the column containing this tile.
     pub column_id: Uuid,
+    /// The logical X coordinate of the tile.
     pub logical_x: f64,
+    /// The logical Y coordinate of the tile.
     pub logical_y: f64,
+    /// The logical width of the tile.
     pub logical_width: f64,
+    /// The logical height of the tile.
     pub logical_height: f64,
+    /// The streaming state of the tile.
     pub stream_state: String,
+    /// The last known alive timestamp of the stream/node.
     pub last_known_alive: Option<Timestamp>,
+    /// Whether this remote tile is rendered as a placeholder.
     pub placeholder: bool,
+    /// Whether the peer owning this tile is currently disconnected.
     pub disconnected: bool,
 }
 
@@ -1705,14 +1791,23 @@ pub struct LinkRemoteTile {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
 pub struct LinkGlobalWorkspace {
+    /// The unique identifier of the linked session.
     pub session_id: Uuid,
+    /// The generation of the session layout.
     pub generation: u64,
+    /// The sequence number of the layout operation.
     pub operation_seq: u64,
+    /// The unique identifier of the current leader node.
     pub leader_node_id: Uuid,
+    /// List of participant node IDs in the session.
     pub participants: Vec<Uuid>,
+    /// The unique identifier of the currently focused tile, if any.
     pub focused_tile: Option<Uuid>,
+    /// List of columns in the global workspace.
     pub columns: Vec<Uuid>,
+    /// List of remote tiles in the global workspace.
     pub tiles: Vec<LinkRemoteTile>,
+    /// List of participant viewports.
     pub viewports: Vec<LinkViewport>,
 }
 
@@ -1979,47 +2074,95 @@ pub enum Event {
         stream_id: u64,
     },
     /// niri-link was enabled.
-    LinkEnabled { session_id: Option<Uuid> },
+    LinkEnabled {
+        /// The unique identifier of the active session, if any.
+        session_id: Option<Uuid>,
+    },
     /// niri-link was disabled.
-    LinkDisabled { session_id: Option<Uuid> },
+    LinkDisabled {
+        /// The unique identifier of the ended session, if any.
+        session_id: Option<Uuid>,
+    },
     /// A peer was discovered.
-    LinkPeerDiscovered { peer: LinkPeer },
+    LinkPeerDiscovered {
+        /// Information about the discovered peer.
+        peer: LinkPeer,
+    },
     /// A peer joined the session.
-    LinkPeerJoined { peer: LinkPeer },
+    LinkPeerJoined {
+        /// Information about the peer that joined.
+        peer: LinkPeer,
+    },
     /// A peer left the session.
-    LinkPeerLeft { node_id: Uuid },
+    LinkPeerLeft {
+        /// The unique identifier of the node that left.
+        node_id: Uuid,
+    },
     /// The session leader changed.
     LinkLeaderChanged {
+        /// The unique identifier of the new leader node.
         leader_node_id: Uuid,
+        /// The layout generation of the leadership change.
         generation: u64,
     },
     /// The global linked layout changed.
     LinkGlobalLayoutChanged {
+        /// The unique identifier of the session.
         session_id: Uuid,
+        /// The sequence number of the layout operation.
         operation_seq: u64,
     },
     /// A remote tile was created.
-    LinkRemoteTileCreated { tile: LinkRemoteTile },
+    LinkRemoteTileCreated {
+        /// The newly created remote tile metadata.
+        tile: LinkRemoteTile,
+    },
     /// A remote tile was updated.
-    LinkRemoteTileUpdated { tile: LinkRemoteTile },
+    LinkRemoteTileUpdated {
+        /// The updated remote tile metadata.
+        tile: LinkRemoteTile,
+    },
     /// A remote tile was closed.
-    LinkRemoteTileClosed { tile_id: Uuid },
+    LinkRemoteTileClosed {
+        /// The unique identifier of the closed tile.
+        tile_id: Uuid,
+    },
     /// A stream was started.
-    LinkStreamStarted { tile_id: Uuid },
+    LinkStreamStarted {
+        /// The unique identifier of the tile whose stream started.
+        tile_id: Uuid,
+    },
     /// A stream was stopped.
-    LinkStreamStopped { tile_id: Uuid },
+    LinkStreamStopped {
+        /// The unique identifier of the tile whose stream stopped.
+        tile_id: Uuid,
+    },
     /// A stream degraded.
-    LinkStreamDegraded { tile_id: Uuid, reason: String },
+    LinkStreamDegraded {
+        /// The unique identifier of the tile whose stream degraded.
+        tile_id: Uuid,
+        /// Description of the degradation reason.
+        reason: String,
+    },
     /// Input was forwarded to a remote owner.
     LinkInputForwarded {
+        /// The unique identifier of the target tile.
         tile_id: Uuid,
+        /// The unique identifier of the owner node.
         owner_node_id: Uuid,
+        /// The type of input forwarded (e.g. pointer, keyboard).
         kind: String,
     },
     /// A linked session was persisted.
-    LinkSessionPersisted { session_id: Uuid },
+    LinkSessionPersisted {
+        /// The unique identifier of the persisted session.
+        session_id: Uuid,
+    },
     /// A link-related error occurred.
-    LinkError { message: String },
+    LinkError {
+        /// The error message.
+        message: String,
+    },
 }
 
 impl From<Duration> for Timestamp {

@@ -3,7 +3,7 @@ use std::thread;
 use std::time::Duration;
 
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 pub const MDNS_SERVICE_NAME: &str = "_niri-link._tcp.local.";
 pub const MDNS_SERVICE_TYPE: &str = "_niri-link._tcp.local.";
