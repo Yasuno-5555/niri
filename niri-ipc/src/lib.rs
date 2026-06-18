@@ -294,6 +294,8 @@ pub enum Response {
     LinkGlobalWorkspace(Option<LinkGlobalWorkspace>),
     /// Current remote tiles.
     LinkRemoteTiles(Vec<LinkRemoteTile>),
+    /// Active viewports in the linked session.
+    LinkViewports(Vec<LinkViewport>),
 }
 
 /// Overview information.
