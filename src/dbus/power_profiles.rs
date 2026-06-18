@@ -1,7 +1,6 @@
 use futures_util::StreamExt;
-use zbus::fdo;
 use zbus::names::InterfaceName;
-use zbus::zvariant;
+use zbus::{fdo, zvariant};
 
 pub enum PowerProfilesToNiri {
     ActiveProfileChanged(String),
