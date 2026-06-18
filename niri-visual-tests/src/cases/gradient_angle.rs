@@ -64,6 +64,7 @@ impl TestCase for GradientAngle {
             CornerRadius::default(),
             1.,
             1.,
+            0.0,
         )
         .with_location(area.loc)]
         .into_iter()
