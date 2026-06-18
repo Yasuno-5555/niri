@@ -115,8 +115,9 @@ impl RuleEngine {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use niri_config::Config;
+
+    use super::*;
 
     #[test]
     fn rule_engine_from_empty_config() {
