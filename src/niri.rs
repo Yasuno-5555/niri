@@ -59,6 +59,7 @@ use smithay::reexports::calloop::{
     Interest, LoopHandle, LoopSignal, Mode, PostAction, RegistrationToken,
 };
 use smithay::reexports::wayland_protocols::ext::session_lock::v1::server::ext_session_lock_v1::ExtSessionLockV1;
+use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::WmCapabilities;
 use smithay::reexports::wayland_protocols_misc::server_decoration as _server_decoration;
 use smithay::reexports::wayland_protocols_wlr::screencopy::v1::server::zwlr_screencopy_manager_v1::ZwlrScreencopyManagerV1;
@@ -148,6 +149,9 @@ use crate::layout::workspace::{Workspace, WorkspaceId};
 use crate::layout::{
     HitType, Layout, LayoutElement as _, LayoutElementRenderElement, MonitorRenderElement,
 };
+use crate::link::persistence::now_millis;
+use crate::link::protocol::{PrivacyFlags, StreamState, TileMetadata, Viewport};
+use crate::link::{config::RuntimeLinkConfig, LinkManager};
 use crate::niri_render_elements;
 use crate::protocols::ext_workspace::{self, ExtWorkspaceManagerState};
 use crate::protocols::foreign_toplevel::{self, ForeignToplevelManagerState};
@@ -186,10 +190,11 @@ use crate::utils::xwayland::satellite::Satellite;
 use crate::utils::{
     center, center_f64, expand_home, get_monotonic_time, ipc_transform_to_smithay, is_mapped,
     logical_output, make_screenshot_path, output_matches_name, output_size, panel_orientation,
-    send_scale_transform, write_png_rgba8, xwayland,
+    send_scale_transform, with_toplevel_role, write_png_rgba8, xwayland,
 };
 use crate::window::mapped::MappedId;
 use crate::window::{InitialConfigureState, Mapped, ResolvedWindowRules, Unmapped, WindowRef};
+use uuid::Uuid;
 
 const CLEAR_COLOR_LOCKED: [f32; 4] = [0.3, 0.1, 0.1, 1.];
 
@@ -412,6 +417,7 @@ pub struct Niri {
     pub exit_confirm_dialog: ExitConfirmDialog,
     pub mode_hud: ModeHud,
     pub action_palette: ActionPalette,
+    pub link: LinkManager,
 
     /// Whether safe mode is currently active.
     /// When active, scripts, gestures, and expensive effects are disabled.
@@ -887,6 +893,33 @@ impl State {
         self.niri.refresh_window_rules();
         self.refresh_ipc_outputs();
         self.ipc_refresh_layout();
+        if self.niri.sync_link_state() {
+            if let Some(session) = self.niri.link.current_session.as_ref() {
+                self.ipc_link_event(niri_ipc::Event::LinkGlobalLayoutChanged {
+                    session_id: session.workspace.session_id,
+                    operation_seq: session.workspace.operation_seq,
+                });
+            }
+        }
+        // Periodic heartbeat roughly every 5 seconds.
+        if self.niri.link.enabled {
+            static LAST_HB: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let now_5sec = now_millis() / 5000;
+            let last = LAST_HB.load(std::sync::atomic::Ordering::Relaxed);
+            if now_5sec != last {
+                LAST_HB.store(now_5sec, std::sync::atomic::Ordering::Relaxed);
+                self.niri.link.send_heartbeat();
+                // Check peer timeouts (30 second threshold).
+                if self.niri.link.check_peer_timeouts(30_000) {
+                    // Purge tiles from timed-out peers after stale timeout.
+                    let stale_timeout = self.niri.link.config.stale_frame_timeout_ms as u64 * 10;
+                    let purged = self.niri.link.purge_stale_remote_tiles(stale_timeout);
+                    for tile_id in purged {
+                        self.ipc_link_event(niri_ipc::Event::LinkRemoteTileClosed { tile_id });
+                    }
+                }
+            }
+        }
         self.ipc_refresh_keyboard_layout_index();
 
         // Needs to be called after updating the keyboard focus.
@@ -2549,6 +2582,7 @@ impl Niri {
         let mode_hud = ModeHud::new(animation_clock.clone(), config.clone());
         let action_registry = crate::liquid::action_registry::ActionRegistry::build(&config_);
         let action_palette = ActionPalette::new(config.clone(), mod_key, action_registry.clone());
+        let link_config = RuntimeLinkConfig::from(&config_.link);
 
         #[cfg(feature = "dbus")]
         let a11y = A11y::new(event_loop.clone());
@@ -2755,6 +2789,7 @@ impl Niri {
             exit_confirm_dialog,
             mode_hud,
             action_palette,
+            link: LinkManager::new(link_config),
 
             safe_mode_active: false,
             capabilities,
@@ -4585,6 +4620,140 @@ impl Niri {
         };
 
         self.layout.refresh(layout_is_active);
+    }
+
+    pub fn sync_link_state(&mut self) -> bool {
+        if !self.link.enabled {
+            return false;
+        }
+
+        let mut viewports = Vec::new();
+        for output in self.global_space.outputs() {
+            let Some(geometry) = self.global_space.output_geometry(output) else {
+                continue;
+            };
+
+            viewports.push(Viewport {
+                node_id: self.link.local_node_id,
+                output_name: output.name(),
+                global_x: geometry.loc.x as f64,
+                global_y: geometry.loc.y as f64,
+                logical_width: geometry.size.w as f64,
+                logical_height: geometry.size.h as f64,
+                scale: output.current_scale().fractional_scale(),
+                transform: match output.current_transform() {
+                    Transform::Normal => 0,
+                    Transform::_90 => 1,
+                    Transform::_180 => 2,
+                    Transform::_270 => 3,
+                    Transform::Flipped => 4,
+                    Transform::Flipped90 => 5,
+                    Transform::Flipped180 => 6,
+                    Transform::Flipped270 => 7,
+                },
+                refresh_rate_millihz: output.current_mode().map(|mode| mode.refresh.max(0) as u32),
+            });
+        }
+
+        #[derive(Debug)]
+        struct LocalLinkTile {
+            workspace_id: u64,
+            column_idx: usize,
+            tile_idx: usize,
+            focused: bool,
+            metadata: TileMetadata,
+        }
+
+        let alive_millis = now_millis();
+        let mut local_tiles = Vec::new();
+        self.layout
+            .with_windows(|mapped, _output, workspace_id, window_layout| {
+                let Some(workspace_id) = workspace_id else {
+                    return;
+                };
+                let Some((column_idx, tile_idx)) = window_layout.pos_in_scrolling_layout else {
+                    return;
+                };
+
+                let tile_id = self.link_tile_id(mapped.id());
+                let column_id = self.link_column_id(workspace_id, column_idx);
+                let size = mapped.size();
+                let (app_id, title) = with_toplevel_role(mapped.toplevel(), |role| {
+                    (role.app_id.clone(), role.title.clone())
+                });
+                let (fullscreen, maximized) = mapped.toplevel().with_committed_state(|state| {
+                    let Some(state) = state else {
+                        return (false, false);
+                    };
+                    (
+                        state.states.contains(xdg_toplevel::State::Fullscreen),
+                        state.states.contains(xdg_toplevel::State::Maximized),
+                    )
+                });
+
+                local_tiles.push(LocalLinkTile {
+                    workspace_id: workspace_id.get(),
+                    column_idx,
+                    tile_idx,
+                    focused: mapped.is_focused(),
+                    metadata: TileMetadata {
+                        tile_id,
+                        owner_node_id: self.link.local_node_id,
+                        app_id,
+                        title,
+                        pid: mapped
+                            .credentials()
+                            .map(|credentials| credentials.pid as i32),
+                        initial_size: window_layout.window_size,
+                        current_logical_size: (size.w, size.h),
+                        column_id,
+                        column_tile_index: tile_idx.saturating_sub(1),
+                        stack_group: None,
+                        fullscreen,
+                        maximized,
+                        floating: mapped.is_floating(),
+                        last_known_alive_millis: alive_millis,
+                        stream_state: StreamState::Streaming,
+                        privacy_flags: PrivacyFlags::default(),
+                    },
+                });
+            });
+
+        local_tiles.sort_by_key(|tile| (tile.workspace_id, tile.column_idx, tile.tile_idx));
+        let focused_tile = local_tiles
+            .iter()
+            .find(|tile| tile.focused)
+            .map(|tile| tile.metadata.tile_id);
+        let tile_metadata = local_tiles.into_iter().map(|tile| tile.metadata).collect();
+
+        let mut changed = self.link.sync_local_viewports(viewports);
+        changed |= self.link.sync_local_tiles(tile_metadata);
+        changed |= self.link.sync_focused_tile(focused_tile);
+
+        // Process incoming network messages from peers.
+        changed |= self.link.process_incoming();
+
+        // Poll mDNS discovery for newly found peers.
+        changed |= self.link.poll_discovery();
+
+        changed
+    }
+
+    /// Ensure the network stack is started when link becomes enabled.
+    pub fn start_link_network_if_needed(&mut self) {
+        if self.link.enabled {
+            self.link.start_network();
+        }
+    }
+
+    fn link_tile_id(&self, mapped_id: MappedId) -> Uuid {
+        let raw = self.link.local_node_id.as_u128() ^ ((mapped_id.get() as u128) << 64);
+        Uuid::from_u128(raw ^ mapped_id.get() as u128)
+    }
+
+    fn link_column_id(&self, workspace_id: WorkspaceId, column_idx: usize) -> Uuid {
+        let raw = ((workspace_id.get() as u128) << 64) ^ column_idx as u128;
+        Uuid::from_u128(self.link.local_node_id.as_u128() ^ raw)
     }
 
     pub fn refresh_idle_inhibit(&mut self) {

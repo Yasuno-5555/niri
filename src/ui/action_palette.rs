@@ -491,6 +491,18 @@ fn action_to_registry_id(action: &Action) -> Option<&'static str> {
         Action::ToggleScratchColumn(..) => Some("toggle-scratch-column"),
         Action::SetMaterial(..) => Some("set-material"),
         Action::ToggleSafeMode => Some("toggle-safe-mode"),
+        Action::LinkEnable => Some("link-enable"),
+        Action::LinkDisable => Some("link-disable"),
+        Action::LinkToggle => Some("link-toggle"),
+        Action::LinkJoin(..) => Some("link-join"),
+        Action::LinkLeave => Some("link-leave"),
+        Action::LinkPair(..) => Some("link-pair"),
+        Action::LinkUnpair(..) => Some("link-unpair"),
+        Action::LinkTrustNode(..) => Some("link-trust-node"),
+        Action::LinkForgetNode(..) => Some("link-forget-node"),
+        Action::LinkRestoreSession(..) => Some("link-restore-session"),
+        Action::LinkSetLeader(..) => Some("link-set-leader"),
+        Action::LinkStatus => Some("link-status"),
         _ => None,
     }
 }
@@ -512,6 +524,11 @@ fn registry_id_to_action(id: &str) -> Option<Action> {
         "toggle-column-tabbed-display" => Some(Action::ToggleColumnTabbedDisplay),
         "toggle-action-palette" => Some(Action::ToggleActionPalette),
         "toggle-safe-mode" => Some(Action::ToggleSafeMode),
+        "link-enable" => Some(Action::LinkEnable),
+        "link-disable" => Some(Action::LinkDisable),
+        "link-toggle" => Some(Action::LinkToggle),
+        "link-leave" => Some(Action::LinkLeave),
+        "link-status" => Some(Action::LinkStatus),
         _ => None,
     }
 }
