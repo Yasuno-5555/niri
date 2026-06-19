@@ -1,0 +1,22 @@
+pkgbase = cidre-session
+	pkgdesc = Cidre session launcher and Wayland session entry
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/Yasuno-5555/Cidre
+	arch = aarch64
+	license = custom
+	depends = niri-cidre
+	depends = greetd
+	depends = greetd-tuigreet
+	source = cidre-session
+	source = cidre.desktop
+	source = cidre.service
+	source = cidre-shutdown.target
+	source = profile.txt
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+
+pkgname = cidre-session

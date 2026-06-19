@@ -18,11 +18,11 @@ To do that, put files into the correct directories according to this table.
 | File | Destination |
 | ---- | ----------- |
 | `target/release/niri` | `/usr/bin/` |
-| `resources/niri-session` | `/usr/bin/` |
-| `resources/niri.desktop` | `/usr/share/wayland-sessions/` |
+| `resources/compat/niri-session` | `/usr/bin/` |
+| `resources/compat/niri.desktop` | `/usr/share/wayland-sessions/` |
 | `resources/niri-portals.conf` | `/usr/share/xdg-desktop-portal/` |
-| `resources/niri.service` (systemd) | `/usr/lib/systemd/user/` |
-| `resources/niri-shutdown.target` (systemd) | `/usr/lib/systemd/user/` |
+| `resources/compat/niri.service` (systemd) | `/usr/lib/systemd/user/` |
+| `resources/compat/niri-shutdown.target` (systemd) | `/usr/lib/systemd/user/` |
 | `resources/dinit/niri` (dinit) | `/usr/lib/dinit.d/user/` |
 | `resources/dinit/niri.target` (dinit) | `/usr/lib/dinit.d/user/` |
 
@@ -47,7 +47,7 @@ Set them as automatically-installed optional dependencies, if possible.
 Working hardware acceleration is required for running niri.
 - Some notification daemon like `mako`, generally required for apps to work correctly.
 
-Finally, you may want to auto-install some of the applications bound in niri's [default configuration file](https://github.com/niri-wm/niri/blob/main/resources/default-config.kdl) (search for `spawn`), such as `alacritty` and `fuzzel`.
+Finally, you may want to auto-install some of the applications bound in niri's [default configuration file](https://github.com/Yasuno-5555/Cidre/blob/main/resources/default-config.kdl) (search for `spawn`), such as `ghostty` and `fuzzel`.
 
 ### Running tests
 

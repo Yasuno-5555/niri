@@ -1,0 +1,41 @@
+# Maintainer: Yasuno <yasuno@example.invalid>
+
+pkgname=cidre-meta-core
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Cidre v1.0 core platform profile for Apple Silicon Macs'
+url='https://github.com/Yasuno-5555/Cidre'
+arch=('aarch64')
+license=('custom')
+depends=(
+  'base'
+  'base-devel'
+  'sudo'
+  'linux-asahi'
+  'linux-firmware'
+  'm1n1'
+  'uboot-asahi'
+  'grub'
+  'archlinuxarm-keyring'
+  'asahi-alarm-keyring'
+  'asahi-meta'
+  'asahi-fwextract'
+  'asahi-audio'
+  'asahi-scripts'
+  'bankstown'
+  'speakersafetyd'
+  'rtkit'
+  'btrfs-progs'
+  'snapper'
+  'snap-pac'
+  'zram-generator'
+  'networkmanager'
+  'openssh'
+  'rsync'
+)
+source=('profile.txt')
+sha256sums=('SKIP')
+
+package() {
+  install -Dm644 profile.txt "${pkgdir}/usr/share/doc/${pkgname}/profile.txt"
+}

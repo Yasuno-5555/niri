@@ -1,0 +1,3 @@
+Cidre v1.0 developer profile
+
+This package is a meta profile for the default Cidre developer toolchain.

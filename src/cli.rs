@@ -28,7 +28,7 @@ pub struct Cli {
     pub session: bool,
     /// Start in safe mode, disabling scripts, gestures, and expensive effects.
     ///
-    /// Useful for recovering from a misbehaving config or script that causes niri
+    /// Useful for recovering from a misbehaving config or script that causes niri-cidre
     /// to crash on startup. Safe mode can also be toggled at runtime with the
     /// `toggle-safe-mode` action.
     #[arg(long)]
@@ -44,7 +44,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Sub {
-    /// Communicate with the running niri instance.
+    /// Communicate with the running niri-cidre instance.
     Msg {
         #[command(subcommand)]
         msg: Msg,
@@ -109,7 +109,7 @@ pub enum Msg {
     },
     /// Start continuously receiving events from the compositor.
     EventStream,
-    /// Print the version of the running niri instance.
+    /// Print the version of the running niri-cidre instance.
     Version,
     /// Request an error from the running niri instance.
     RequestError,

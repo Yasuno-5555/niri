@@ -1,5 +1,5 @@
 [Unit]
-Description=A scrollable-tiling Wayland compositor
+Description=Cidre desktop compositor session
 BindsTo=graphical-session.target
 Before=graphical-session.target
 Wants=graphical-session-pre.target
@@ -11,4 +11,4 @@ Before=xdg-desktop-autostart.target
 [Service]
 Slice=session.slice
 Type=notify
-ExecStart=niri --session
+ExecStart=niri-cidre --session --config %h/.config/niri/config.cidre.kdl

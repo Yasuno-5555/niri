@@ -1,0 +1,30 @@
+# Maintainer: Yasuno <yasuno@example.invalid>
+
+pkgname=cidre-session
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Cidre session launcher and Wayland session entry'
+url='https://github.com/Yasuno-5555/Cidre'
+arch=('aarch64')
+license=('custom')
+depends=(
+  'niri-cidre'
+  'greetd'
+  'greetd-tuigreet'
+)
+source=(
+  'cidre-session'
+  'cidre.desktop'
+  'cidre.service'
+  'cidre-shutdown.target'
+  'profile.txt'
+)
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
+
+package() {
+  install -Dm755 "${srcdir}/cidre-session" "${pkgdir}/usr/bin/cidre-session"
+  install -Dm644 "${srcdir}/cidre.desktop" "${pkgdir}/usr/share/wayland-sessions/cidre.desktop"
+  install -Dm644 "${srcdir}/cidre.service" "${pkgdir}/usr/lib/systemd/user/cidre.service"
+  install -Dm644 "${srcdir}/cidre-shutdown.target" "${pkgdir}/usr/lib/systemd/user/cidre-shutdown.target"
+  install -Dm644 "${srcdir}/profile.txt" "${pkgdir}/usr/share/doc/${pkgname}/profile.txt"
+}

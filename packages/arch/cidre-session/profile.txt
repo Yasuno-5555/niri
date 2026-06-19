@@ -1,0 +1,5 @@
+Cidre v1.0 session package
+
+This package owns the public Cidre login entry and session launcher.
+
+It depends on `niri-cidre` as the compositor binary started by the standard Cidre session path.

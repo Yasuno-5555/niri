@@ -1,0 +1,11 @@
+Cidre v1.0 desktop profile
+
+This package is a meta profile for the standard Cidre desktop runtime.
+
+Expected ownership:
+- niri-cidre
+- cidre-session
+- cidre-config
+- greetd
+- greetd-tuigreet
+- the standard Cidre login/session path

@@ -1,0 +1,64 @@
+# Maintainer: Yasuno <yasuno@example.invalid>
+
+pkgname=cidre-meta-desktop
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Cidre v1.0 desktop profile with standard login stack'
+url='https://github.com/Yasuno-5555/Cidre'
+arch=('aarch64')
+license=('custom')
+depends=(
+  'niri-cidre'
+  'cidre-session'
+  'cidre-config'
+  'greetd'
+  'greetd-tuigreet'
+  'foot'
+  'ghostty-git'
+  'fish'
+  'bash-completion'
+  'fuzzel'
+  'swaybg'
+  'swayidle'
+  'swaylock-effects'
+  'brightnessctl'
+  'pamixer'
+  'playerctl'
+  'bluez'
+  'bluez-utils'
+  'pipewire-alsa'
+  'pipewire-pulse'
+  'pipewire-jack'
+  'power-profiles-daemon'
+  'wl-clipboard'
+  'xwayland-satellite'
+  'xdg-desktop-portal'
+  'xdg-desktop-portal-gnome'
+  'polkit-gnome'
+  'fcitx5'
+  'fcitx5-configtool'
+  'fcitx5-mozc'
+  'fcitx5-gtk'
+  'fcitx5-qt'
+  'noto-fonts'
+  'noto-fonts-cjk'
+  'noto-fonts-emoji'
+  'ttf-jetbrains-mono-nerd'
+  'firefox'
+  'thunar'
+  'evince'
+  'imv'
+  'mpv'
+)
+optdepends=(
+  'quickshell: Cidre shell UI when shipped as part of the desktop profile'
+  'gtk4-layer-shell: layer-shell runtime for Cidre shell UI'
+  'gnome-keyring: credentials and secret storage integration'
+)
+provides=('cidre-login-stack')
+source=('profile.txt')
+sha256sums=('SKIP')
+
+package() {
+  install -Dm644 profile.txt "${pkgdir}/usr/share/doc/${pkgname}/profile.txt"
+}

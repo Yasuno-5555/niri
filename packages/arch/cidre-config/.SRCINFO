@@ -1,0 +1,15 @@
+pkgbase = cidre-config
+	pkgdesc = Cidre default configuration assets
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/Yasuno-5555/Cidre
+	arch = any
+	license = custom
+	source = default-config.kdl
+	source = default-config.cidre.kdl
+	source = profile.txt
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+
+pkgname = cidre-config

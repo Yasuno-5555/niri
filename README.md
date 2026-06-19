@@ -1,19 +1,80 @@
 <h1 align="center"><img alt="niri" src="https://github.com/user-attachments/assets/07d05cd0-d5dc-4a28-9a35-51bae8f119a0"></h1>
-<p align="center">A scrollable-tiling Wayland compositor (niri fork with liquid extensibility platform).</p>
+<p align="center"><strong>The cider after Homebrew.</strong></p>
+<p align="center">Cidre is an opinionated Arch Linux ARM developer environment for Apple Silicon Macs.</p>
 <p align="center">
-    <a href="https://github.com/niri-wm/niri"><img alt="Forked From" src="https://img.shields.io/badge/fork-niri--wm%2Fniri-blue?logo=git"></a>
-    <a href="https://github.com/niri-wm/niri/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/niri-wm/niri"></a>
+    <a href="https://github.com/Yasuno-5555/Cidre">GitHub</a>
+    |
+    <a href="https://github.com/niri-wm/niri"><img alt="Based on niri" src="https://img.shields.io/badge/base-niri--wm%2Fniri-blue?logo=git"></a>
+    <a href="./LICENSE">License</a>
 </p>
 
 <p align="center">
-    <a href="https://niri-wm.github.io/niri/Getting-Started.html">Getting Started (Upstream)</a> | <a href="https://niri-wm.github.io/niri/Configuration%3A-Introduction.html">Configuration (Upstream)</a>
+    <a href="./INSTALL.md">Install Cidre</a> | <a href="./SUPPORTED_HARDWARE.md">Supported Hardware</a> | <a href="./RECOVERY.md">Recovery</a> | <a href="./CONFIGURATION.md">Configuration</a> | <a href="./KNOWN_LIMITATIONS.md">Known Limitations</a> | <a href="./ISSUE_REPORTING.md">Issue Reporting</a> | <a href="./docs/cidre-v1-scope.md">Cidre v1.0 Scope</a> | <a href="./docs/cidre-v1-release-plan.md">Release Plan</a> | <a href="./docs/cidre-v1-release-checklist.md">Release Checklist</a> | <a href="./docs/niri-cidre-config.md">niri-cidre Config Notes</a> | <a href="https://niri-wm.github.io/niri/Getting-Started.html">niri Background Docs</a>
 </p>
 
-<img width="1280" height="720" alt="niri with a few windows open" src="https://github.com/user-attachments/assets/dea5909e-1859-4aaa-9d88-d37f9663e00b" />
+<img width="1280" height="720" alt="Cidre desktop session on Apple Silicon" src="https://github.com/user-attachments/assets/dea5909e-1859-4aaa-9d88-d37f9663e00b" />
 
-## Fork Notice & Added Features
+## What Is Cidre?
 
-This repository is a fork of the original [niri](https://github.com/niri-wm/niri) project, extending it with several custom features and experimental compositor effects:
+Cidre is an opinionated Arch Linux ARM developer environment for Apple Silicon Macs.
+
+It exists for people who like MacBook hardware, but want a Linux development machine instead of macOS. The goal is not to recreate macOS. The goal is to turn Apple Silicon Mac hardware into a ready-to-use workstation for development, writing, research, and Linux experimentation.
+
+In short:
+
+> Cidre turns a MacBook into an Arch-style Linux developer machine.
+
+Core direction:
+
+- Asahi Linux on Arch Linux ARM / ALARM as the hardware base
+- pacman and AUR for package management
+- `niri-cidre` as the standard desktop/compositor component
+- `greetd + greetd-tuigreet` as the standard login stack
+- Ghostty, fish, Zed, and Helix as the default developer environment
+- foot + bash as the recovery path
+
+Target statement:
+
+- built for Apple Silicon Macs running Asahi Linux on Arch Linux ARM / ALARM
+- not currently targeting Asahi Fedora
+
+Cidre is aimed at users who want:
+
+- Linux ownership and hackability
+- a modern keyboard-first desktop workflow
+- a coherent setup instead of rebuilding dotfiles from scratch every time
+- strong defaults instead of endless choice paralysis
+
+Cidre is not aimed at users who primarily need:
+
+- iCloud, AirDrop, or Apple service integration
+- Adobe workflows
+- Logic Pro or Final Cut Pro
+- a Mac-like Linux theme without deeper system changes
+
+The tagline is:
+
+> The cider after Homebrew.
+
+## niri-cidre In Cidre
+
+`niri-cidre` is the Cidre desktop component based on `niri`.
+
+It is not the whole Cidre project. It is the standard desktop/compositor experience shipped as part of Cidre.
+
+## Project Structure
+
+Cidre is the full developer environment for Apple Silicon Macs running Asahi ALARM / Arch Linux ARM.
+
+`niri-cidre` is the compositor component shipped with Cidre. It is based on upstream `niri`, but packaged and configured for the Cidre desktop experience.
+
+The Cidre login session starts `niri-cidre` through `cidre-session`.
+
+Upstream-compatible `niri-*` session assets are kept only as compatibility resources and are not part of the standard Cidre install path.
+
+## Cidre-Specific Additions
+
+Cidre builds on the original [niri](https://github.com/niri-wm/niri) project and extends the compositor layer with several Cidre-specific features and experimental effects:
 
 *   **niri-liquid Extensibility Platform (v1.1-1.3, Phase 0-4)**: Adds an extensibility API allowing custom compositor control, rendering modifications, and status event streaming (via the `liquid` event bus).
 *   **Scratch Column / Special Workspace**: Added support for toggleable scratch columns/windows and workspace retention to prevent scratch sources from being prematurely cleaned up.
@@ -22,20 +83,24 @@ This repository is a fork of the original [niri](https://github.com/niri-wm/niri
     *   Automatically detects crash conditions via a runtime directory sentinel file (`niri-crash-sentinel`).
     *   If a crash is detected, the config fails to load, or `--safe-mode` is passed via CLI / `NIRI_SAFE_MODE=1` is set, it falls back to a lightweight, script-disabled, and low-resource animation safe-profile at startup.
 
-## About
+## Repository Scope
 
+This repository contains `niri-cidre`, the compositor layer of the broader Cidre environment.
 
-Windows are arranged in columns on an infinite strip going to the right.
-Opening a new window never causes existing windows to resize.
+Baseline `niri` fundamentals still apply:
 
-Every monitor has its own separate window strip.
-Windows can never "overflow" onto an adjacent monitor.
+- windows are arranged in columns on an infinite strip going to the right
+- opening a new window never causes existing windows to resize
+- every monitor has its own separate window strip
+- workspaces are dynamic and arranged vertically
 
-Workspaces are dynamic and arranged vertically.
-Every monitor has an independent set of workspaces, and there's always one empty workspace present all the way down.
+This is where Cidre-specific compositor behavior lives:
 
-The workspace arrangement is preserved across disconnecting and connecting monitors where it makes sense.
-When a monitor disconnects, its workspaces will move to another monitor, but upon reconnection they will move back to the original monitor.
+- power-aware motion and rendering policy
+- touchpad gesture integration for MacBook-class hardware
+- scratch-column and special-workspace workflow
+- liquid/extensible compositor experiments
+- recovery-oriented safe mode behavior
 
 ## Features
 
@@ -55,46 +120,101 @@ When a monitor disconnects, its workspaces will move to another monitor, but upo
 - Live-reloading config
 - Works with [screen readers](https://niri-wm.github.io/niri/Accessibility.html)
 
-## Video Demo
+## Why This Exists
+
+Cidre is for the case where installing Linux on a MacBook is only the first 20% of the work.
+
+The remaining 80% is usually:
+
+- rebuilding shell setup
+- rebuilding editor setup
+- rebuilding terminal setup
+- rebuilding window-management workflow
+- rebuilding recovery tooling
+- rebuilding power-saving behavior
+
+Cidre tries to reduce that by shipping a more finished answer instead of a blank Linux install plus homework.
+
+## Who This Is For
+
+Cidre makes the most sense if you:
+
+- like Apple Silicon MacBook hardware
+- want Linux for daily development
+- prefer Arch-style package management
+- want a modern workflow around niri, Ghostty, fish, Zed, and Helix
+- are comfortable with terminal-centric setup and debugging
+
+Cidre is a poor fit if you mainly want:
+
+- a generic desktop Linux setup
+- macOS feature parity
+- a cosmetic Mac theme
+- zero-maintenance GUI-only workflows
+
+## Reference Media
 
 https://github.com/niri-wm/niri/assets/1794388/bce834b0-f205-434e-a027-b373495f9729
 
-Also check out these videos that showcase a lot of the niri functionality:
+Useful reference videos for the underlying compositor model:
 
 - [Niri Is My New Favorite Wayland Compositor](https://www.youtube.com/watch?v=DeYx2exm04M) by Brodie Robertson
 - [How Is niri This Good? Live Demo + Config](https://www.youtube.com/watch?v=7XmD5UyyhZQ) by Nick Janetakis
 
 ## Status
 
-Niri is stable for day-to-day use and does most things expected of a Wayland compositor.
-Many people are daily-driving niri, and are happy to help in our [Matrix channel].
+Cidre is in an active pre-release shaping phase.
 
-Give it a try!
-Follow the instructions on the [Getting Started](https://niri-wm.github.io/niri/Getting-Started.html) page.
-Grab a desktop shell like [DankMaterialShell] or [Noctalia] (or build a more traditional setup): niri by itself is not a complete desktop environment.
-Also check out [awesome-niri], a list of niri-related links and projects.
+What is already clear:
 
-Here are some points you may have questions about:
+- the product scope is fixed
+- the target platform is fixed
+- the standard package profiles are mostly defined
+- install, recovery, hardware support, and config docs now exist
 
-- **Multi-monitor**: yes, a core part of the design from the very start. Mixed DPI works.
-- **Fractional scaling**: yes, plus all niri UI stays pixel-perfect.
-- **NVIDIA**: seems to work fine.
-- **Floating windows**: yes, starting from niri 25.01.
-- **Input devices**: niri supports tablets, touchpads, and touchscreens.
-You can map the tablet to a specific monitor, or use [OpenTabletDriver].
-We have touchpad gestures, but no touchscreen gestures yet.
-- **Wlr protocols**: yes, we have most of the important ones like layer-shell, gamma-control, screencopy.
-You can check on [wayland.app](https://wayland.app) at the bottom of each protocol's page.
-- **Performance**: while I run niri on beefy machines, I try to stay conscious of performance.
-I've seen someone use it fine on an Eee PC 900 from 2008, of all things.
-- **Xwayland**: [integrated](https://niri-wm.github.io/niri/Xwayland.html#using-xwayland-satellite) via xwayland-satellite starting from niri 25.08.
+What is not fully frozen yet:
 
-## Media
+- polished install mechanics
+- final packaging shape
+- final public-facing naming cleanup
+- broader hardware validation
+
+For the current release stance, read:
+
+- [Cidre v1.0 Scope](./docs/cidre-v1-scope.md)
+- [Cidre v1.0 Release Plan](./docs/cidre-v1-release-plan.md)
+- [Cidre v1.0 Release Checklist](./docs/cidre-v1-release-checklist.md)
+- [Install Guide](./INSTALL.md)
+- [Supported Hardware](./SUPPORTED_HARDWARE.md)
+- [Recovery Guide](./RECOVERY.md)
+- [Configuration Guide](./CONFIGURATION.md)
+- [Known Limitations](./KNOWN_LIMITATIONS.md)
+- [Issue Reporting Guide](./ISSUE_REPORTING.md)
+
+## Practical Capabilities
+
+Areas Cidre currently leans on from the `niri` base:
+
+- multi-monitor workflow
+- fractional scaling
+- floating windows
+- touchpad-oriented tiling interaction
+- layer-shell and portal integration
+- Xwayland support
+
+Areas Cidre is actively shaping on top:
+
+- Apple Silicon developer defaults
+- `niri-cidre` session behavior
+- touchpad gesture policy for MacBook-class hardware
+- power-aware compositor behavior
+- recovery-first desktop operation
+
+## Upstream niri References
 
 [niri: Making a Wayland compositor in Rust](https://youtu.be/Kmz8ODolnDg?list=PLRdS-n5seLRqrmWDQY4KDqtRMfIwU0U3T) · *December 2024*
 
-My talk from the 2024 Moscow RustCon about niri, and how I do randomized property testing and profiling, and measure input latency.
-The talk is in Russian, but I prepared full English subtitles that you can find in YouTube's subtitle language selector.
+Useful background material on `niri` internals and history.
 
 [An interview with Ivan, the developer behind Niri](https://www.trommelspeicher.de/podcast/special_the_developer_behind_niri) · *June 2025*
 
@@ -107,8 +227,18 @@ An LWN article with a nice overview and introduction to niri.
 
 ## Contributing
 
-If you'd like to help with niri, there are plenty of both coding- and non-coding-related ways to do so.
-See [CONTRIBUTING.md](https://github.com/niri-wm/niri/blob/main/CONTRIBUTING.md) for an overview.
+If you'd like to help with Cidre or `niri-cidre`, start by understanding the current release boundary and support assumptions.
+
+Recommended reading order:
+
+- [README.md](./README.md)
+- [Cidre v1.0 Scope](./docs/cidre-v1-scope.md)
+- [Install Guide](./INSTALL.md)
+- [Supported Hardware](./SUPPORTED_HARDWARE.md)
+- [Recovery Guide](./RECOVERY.md)
+- [niri-cidre Config Notes](./docs/niri-cidre-config.md)
+
+For contribution mechanics, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Inspiration
 
@@ -129,9 +259,12 @@ Here are some other projects which implement a similar workflow:
 
 ## Contact
 
-Our main communication channel is a Matrix chat, feel free to join and ask a question: https://matrix.to/#/#niri:matrix.org
+Upstream `niri` community resources remain useful for compositor internals and baseline behavior:
 
-We also have a community Discord server: https://discord.gg/vT8Sfjy7sx
+- Matrix: https://matrix.to/#/#niri:matrix.org
+- Discord: https://discord.gg/vT8Sfjy7sx
+
+Cidre-specific project communication and release workflow should eventually be documented separately rather than relying only on upstream channels.
 
 [PaperWM]: https://github.com/paperwm/PaperWM
 [waybar]: https://github.com/Alexays/Waybar

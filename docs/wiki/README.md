@@ -1,15 +1,32 @@
-Welcome to the niri documentation!
+Welcome to the Cidre / niri-cidre documentation.
 
-Feel free to look through usage and [Getting started](./Getting-Started.md).
-If you're looking for ways to configure niri, check out the [introduction to configuration](./Configuration:-Introduction.md).
+This wiki tree still contains a large amount of upstream `niri` documentation, plus Cidre-specific release and configuration work around it.
 
-If you'd like to help with niri, there are plenty of both coding- and non-coding-related ways to do so.
-See [CONTRIBUTING.md](https://github.com/niri-wm/niri/blob/main/CONTRIBUTING.md) for an overview.
+Read this note first:
 
-If you're not already here, check out our new wiki website! https://niri-wm.github.io/niri/
+- [Documentation note](./CIDRE_NOTE.md)
+
+Start here if you want the current Cidre-facing docs:
+
+- [README.md](../../README.md)
+- [INSTALL.md](../../INSTALL.md)
+- [SUPPORTED_HARDWARE.md](../../SUPPORTED_HARDWARE.md)
+- [RECOVERY.md](../../RECOVERY.md)
+- [CONFIGURATION.md](../../CONFIGURATION.md)
+- [KNOWN_LIMITATIONS.md](../../KNOWN_LIMITATIONS.md)
+
+If you're looking for upstream compositor behavior and baseline configuration details, continue into:
+
+- [Getting Started](./Getting-Started.md)
+- [Configuration introduction](./Configuration:-Introduction.md)
+
+If you'd like to help with Cidre or `niri-cidre`, see [CONTRIBUTING.md](../../CONTRIBUTING.md).
+
+Public hosting and repo URLs for the Cidre docs are not fully frozen yet.
 
 ---
 
 The documentation is open to contribution, see [Documenting niri](./Development:-Documenting-niri.md).
-Please discuss bigger changes in [our Matrix room](https://matrix.to/#/#niri:matrix.org) first!
+Upstream `niri` community spaces are still useful for compositor internals: [Matrix](https://matrix.to/#/#niri:matrix.org).
 The wiki is generated from files in the `docs/wiki/` folder of the repository, so you can open a pull request modifying it there.
+Current repository: https://github.com/Yasuno-5555/Cidre

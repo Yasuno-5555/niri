@@ -1,0 +1,22 @@
+# Maintainer: Yasuno <yasuno@example.invalid>
+
+pkgname=cidre-config
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Cidre default configuration assets'
+url='https://github.com/Yasuno-5555/Cidre'
+arch=('any')
+license=('custom')
+depends=()
+source=(
+  'default-config.kdl'
+  'default-config.cidre.kdl'
+  'profile.txt'
+)
+sha256sums=('SKIP' 'SKIP' 'SKIP')
+
+package() {
+  install -Dm644 "${srcdir}/default-config.kdl" "${pkgdir}/usr/share/cidre/default-config.kdl"
+  install -Dm644 "${srcdir}/default-config.cidre.kdl" "${pkgdir}/usr/share/cidre/default-config.cidre.kdl"
+  install -Dm644 "${srcdir}/profile.txt" "${pkgdir}/usr/share/doc/${pkgname}/profile.txt"
+}

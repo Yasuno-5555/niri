@@ -1,7 +1,6 @@
-site_name: niri
+site_name: Cidre / niri-cidre docs
 docs_dir: wiki
-site_url: https://niri-wm.github.io/niri
-repo_url: https://github.com/niri-wm/niri
+repo_url: https://github.com/Yasuno-5555/Cidre
 edit_uri: edit/main/docs/wiki/
 use_directory_urls: false
 

@@ -1,7 +1,7 @@
 niri's documentation files are found in `docs/wiki/` and should be viewable and browsable in at least three systems:
 
 - The GitHub repo's markdown file preview
-- [The GitHub repo's wiki](https://github.com/niri-wm/niri/wiki)
+- [The GitHub repo](https://github.com/Yasuno-5555/Cidre)
 - [The documentation site](https://niri-wm.github.io/niri/)
 
 ## The GitHub repo's wiki

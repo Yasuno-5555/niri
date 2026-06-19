@@ -1,0 +1,8 @@
+Cidre v1.0 compositor package
+
+This package owns the niri-cidre compositor binary.
+
+It does not own:
+- cidre-session
+- cidre-config
+- the Cidre wayland session entry

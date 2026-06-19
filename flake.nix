@@ -1,6 +1,6 @@
 # This flake file is community maintained
 {
-  description = "Niri: A scrollable-tiling Wayland compositor.";
+  description = "Cidre desktop component based on niri.";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -46,7 +46,7 @@
         }:
 
         rustPlatform.buildRustPackage {
-          pname = "niri";
+          pname = "niri-cidre";
           version = revision;
 
           src = lib.fileset.toSource {
@@ -63,9 +63,9 @@
           };
 
           postPatch = ''
-            patchShebangs resources/niri-session
-            substituteInPlace resources/niri.service \
-              --replace-fail 'ExecStart=niri' "ExecStart=$out/bin/niri"
+            patchShebangs resources/cidre-session
+            substituteInPlace resources/cidre.service \
+              --replace-fail 'ExecStart=niri-cidre' "ExecStart=$out/bin/niri-cidre"
           '';
 
           cargoLock = {
@@ -124,18 +124,18 @@
 
           postInstall =
             ''
-              installShellCompletion --cmd niri \
-                --bash <($out/bin/niri completions bash) \
-                --fish <($out/bin/niri completions fish) \
-                --nushell <($out/bin/niri completions nushell) \
-                --zsh <($out/bin/niri completions zsh)
+              installShellCompletion --cmd niri-cidre \
+                --bash <($out/bin/niri-cidre completions bash) \
+                --fish <($out/bin/niri-cidre completions fish) \
+                --nushell <($out/bin/niri-cidre completions nushell) \
+                --zsh <($out/bin/niri-cidre completions zsh)
 
-              install -Dm644 resources/niri.desktop -t $out/share/wayland-sessions
+              install -Dm755 resources/cidre-session $out/bin/cidre-session
+              install -Dm644 resources/cidre.desktop -t $out/share/wayland-sessions
               install -Dm644 resources/niri-portals.conf -t $out/share/xdg-desktop-portal
             ''
             + lib.optionalString withSystemd ''
-              install -Dm755 resources/niri-session $out/bin/niri-session
-              install -Dm644 resources/niri{.service,-shutdown.target} -t $out/lib/systemd/user
+              install -Dm644 resources/cidre{.service,-shutdown.target} -t $out/lib/systemd/user
             '';
 
           env = {
@@ -153,14 +153,14 @@
           };
 
           passthru = {
-            providedSessions = [ "niri" ];
+            providedSessions = [ "Cidre" ];
           };
 
           meta = {
-            description = "Scrollable-tiling Wayland compositor";
-            homepage = "https://github.com/niri-wm/niri";
+            description = "Cidre desktop component based on niri";
+            homepage = "https://github.com/Yasuno-5555/Cidre";
             license = lib.licenses.gpl3Only;
-            mainProgram = "niri";
+            mainProgram = "niri-cidre";
             platforms = lib.platforms.linux;
           };
         };

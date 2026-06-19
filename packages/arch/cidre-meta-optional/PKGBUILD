@@ -1,0 +1,27 @@
+# Maintainer: Yasuno <yasuno@example.invalid>
+
+pkgname=cidre-meta-optional
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Cidre v1.0 optional applications profile'
+url='https://github.com/Yasuno-5555/Cidre'
+arch=('aarch64')
+license=('custom')
+depends=(
+  'flatpak'
+  'github-cli'
+  'pandoc-bin'
+  'python-numpy'
+  'python-scipy'
+  'python-matplotlib'
+  'python-pyqtgraph'
+  'tailscale'
+  'file-roller'
+  'loupe'
+)
+source=('profile.txt')
+sha256sums=('SKIP')
+
+package() {
+  install -Dm644 profile.txt "${pkgdir}/usr/share/doc/${pkgname}/profile.txt"
+}

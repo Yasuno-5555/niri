@@ -1,0 +1,24 @@
+pkgbase = cidre-meta-diagnostics
+	pkgdesc = Cidre v1.0 diagnostics and profiling profile
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/Yasuno-5555/Cidre
+	arch = aarch64
+	license = custom
+	depends = bpftrace
+	depends = drm-info
+	depends = dtc
+	depends = iotop
+	depends = libinput-tools
+	depends = mesa-utils
+	depends = perf
+	depends = powertop
+	depends = sysstat
+	depends = trace-cmd
+	depends = usbutils
+	depends = strace
+	depends = lsof
+	source = profile.txt
+	sha256sums = SKIP
+
+pkgname = cidre-meta-diagnostics

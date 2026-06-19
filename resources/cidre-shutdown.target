@@ -1,0 +1,6 @@
+[Unit]
+Description=Shutdown running Cidre session
+Conflicts=graphical-session.target
+Conflicts=xdg-desktop-autostart.target
+After=graphical-session.target
+After=xdg-desktop-autostart.target

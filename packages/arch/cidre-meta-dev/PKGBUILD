@@ -1,0 +1,45 @@
+# Maintainer: Yasuno <yasuno@example.invalid>
+
+pkgname=cidre-meta-dev
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Cidre v1.0 developer toolchain profile'
+url='https://github.com/Yasuno-5555/Cidre'
+arch=('aarch64')
+license=('custom')
+depends=(
+  'git'
+  'paru'
+  'bat'
+  'eza'
+  'fd'
+  'ripgrep'
+  'fzf'
+  'zoxide'
+  'starship'
+  'direnv'
+  'jq'
+  'just'
+  'helix'
+  'zed'
+  'clang'
+  'llvm'
+  'lld'
+  'mold'
+  'cmake'
+  'meson'
+  'ninja'
+  'rustup'
+  'zig'
+  'python'
+  'python-pip'
+  'wget'
+  'which'
+  'tree'
+)
+source=('profile.txt')
+sha256sums=('SKIP')
+
+package() {
+  install -Dm644 profile.txt "${pkgdir}/usr/share/doc/${pkgname}/profile.txt"
+}

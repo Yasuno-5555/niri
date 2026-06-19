@@ -1,0 +1,21 @@
+pkgbase = cidre-meta-optional
+	pkgdesc = Cidre v1.0 optional applications profile
+	pkgver = 1.0.0
+	pkgrel = 1
+	url = https://github.com/Yasuno-5555/Cidre
+	arch = aarch64
+	license = custom
+	depends = flatpak
+	depends = github-cli
+	depends = pandoc-bin
+	depends = python-numpy
+	depends = python-scipy
+	depends = python-matplotlib
+	depends = python-pyqtgraph
+	depends = tailscale
+	depends = file-roller
+	depends = loupe
+	source = profile.txt
+	sha256sums = SKIP
+
+pkgname = cidre-meta-optional

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Cidre Desktop
+Comment=Cidre desktop session powered by niri-cidre
+Exec=cidre-session
+Type=Application
+DesktopNames=Cidre;niri

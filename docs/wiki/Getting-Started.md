@@ -215,11 +215,11 @@ This defaults to `/usr/bin/niri`.
 | File | Destination |
 | ---- | ----------- |
 | `target/release/niri` | `/usr/local/bin/` |
-| `resources/niri-session` | `/usr/local/bin/` |
-| `resources/niri.desktop`  | `/usr/local/share/wayland-sessions/` |
+| `resources/compat/niri-session` | `/usr/local/bin/` |
+| `resources/compat/niri.desktop`  | `/usr/local/share/wayland-sessions/` |
 | `resources/niri-portals.conf` | `/usr/local/share/xdg-desktop-portal/` |
-| `resources/niri.service` (systemd) | `/etc/systemd/user/` |
-| `resources/niri-shutdown.target` (systemd) | `/etc/systemd/user/` |
+| `resources/compat/niri.service` (systemd) | `/etc/systemd/user/` |
+| `resources/compat/niri-shutdown.target` (systemd) | `/etc/systemd/user/` |
 | `resources/dinit/niri` (dinit) | `/etc/dinit.d/user/` |
 | `resources/dinit/niri.target` (dinit) | `/etc/dinit.d/user/` |
 

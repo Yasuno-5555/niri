@@ -94,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Set the current desktop for xdg-desktop-portal.
-        env::set_var("XDG_CURRENT_DESKTOP", "niri");
+        env::set_var("XDG_CURRENT_DESKTOP", "Cidre");
         // Ensure the session type is set to Wayland for xdg-autostart and Qt apps.
         env::set_var("XDG_SESSION_TYPE", "wayland");
     }
@@ -120,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         clap_complete::generate(
                             Nushell,
                             &mut Cli::command(),
-                            "niri",
+                            "niri-cidre",
                             &mut io::stdout(),
                         );
                     }
@@ -129,7 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         clap_complete::generate(
                             generator,
                             &mut Cli::command(),
-                            "niri",
+                            "niri-cidre",
                             &mut io::stdout(),
                         );
                     }

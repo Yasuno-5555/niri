@@ -1,0 +1,7 @@
+// Cidre entrypoint config.
+//
+// Keep fork-specific settings layered separately from the upstream-compatible
+// base config to reduce merge pain and preserve a recovery path.
+
+include "./default-config.kdl"
+include optional=true "./default-config.cidre.local.kdl"
