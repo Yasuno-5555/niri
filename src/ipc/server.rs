@@ -1125,6 +1125,31 @@ impl State {
         server.send_event(event);
     }
 
+    pub fn ipc_gesture_progress(
+        &mut self,
+        gesture: String,
+        phase: String,
+        fingers: u8,
+        direction: String,
+        progress: f64,
+        velocity: f64,
+    ) {
+        let Some(server) = &self.niri.ipc_server else {
+            return;
+        };
+
+        let event = Event::TouchpadGestureProgress {
+            gesture,
+            phase,
+            fingers,
+            direction,
+            progress,
+            velocity,
+        };
+        // This is a transient event, no state representation in event_stream_state is needed for replica
+        server.send_event(event);
+    }
+
     pub fn ipc_refresh_casts(&mut self) {
         let Some(server) = &self.niri.ipc_server else {
             return;

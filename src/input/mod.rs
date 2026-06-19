@@ -4123,6 +4123,14 @@ impl State {
 
             if fingers == 3 {
                 self.niri.gesture_swipe_cumulative = Some((0., 0.));
+                self.ipc_gesture_progress(
+                    "workspace-swipe".to_string(),
+                    "begin".to_string(),
+                    3,
+                    "horizontal".to_string(),
+                    0.0,
+                    0.0,
+                );
 
                 // We handled this event.
                 return;
@@ -4270,6 +4278,25 @@ impl State {
         if let Some(output) = res {
             if let Some(output) = output {
                 self.niri.queue_redraw(&output);
+                // Export progress to IPC stream
+                if let Some(mon) = self.niri.layout.monitor_for_output(&output) {
+                    if let Some(ws) = mon.workspaces.iter().find(|ws| {
+                        matches!(ws.scrolling.view_offset, crate::layout::scrolling::ViewOffset::Gesture(_))
+                    }) {
+                        if let crate::layout::scrolling::ViewOffset::Gesture(ref gesture_state) = ws.scrolling.view_offset {
+                            let progress = gesture_state.current_view_offset.abs() / mon.working_area.size.w.max(1.0);
+                            let velocity = gesture_state.tracker.velocity();
+                            self.ipc_gesture_progress(
+                                "workspace-swipe".to_string(),
+                                "update".to_string(),
+                                3,
+                                "horizontal".to_string(),
+                                progress.clamp(0.0, 1.0),
+                                velocity,
+                            );
+                        }
+                    }
+                }
             }
             handled = true;
         }
@@ -4350,9 +4377,18 @@ impl State {
             handled = true;
         }
 
+        let is_cancelled = event.cancelled();
         let res = self.niri.layout.view_offset_gesture_end(Some(true));
         if let Some(output) = res {
             self.niri.queue_redraw(&output);
+            self.ipc_gesture_progress(
+                "workspace-swipe".to_string(),
+                if is_cancelled { "cancel".to_string() } else { "end".to_string() },
+                3,
+                "horizontal".to_string(),
+                if is_cancelled { 0.0 } else { 1.0 },
+                0.0,
+            );
             handled = true;
         }
 

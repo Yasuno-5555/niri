@@ -63,9 +63,9 @@ pub struct Monitor<W: LayoutElement> {
     // FIXME: since this is used for things like DnD scrolling edges in the overview, ideally this
     // should only consider overlay and top layer-shell surfaces. However, Smithay doesn't easily
     // let you do this at the moment.
-    working_area: Rectangle<f64, Logical>,
+    pub working_area: Rectangle<f64, Logical>,
     // Must always contain at least one.
-    pub(super) workspaces: Vec<Workspace<W>>,
+    pub workspaces: Vec<Workspace<W>>,
     /// Index of the currently active workspace.
     pub(super) active_workspace_idx: usize,
     /// ID of the previously active workspace.

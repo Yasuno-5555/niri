@@ -2155,6 +2155,21 @@ pub enum Event {
         /// The error message.
         message: String,
     },
+    /// A touchpad swipe or pinch gesture progress update for Adaptive UI coupling.
+    TouchpadGestureProgress {
+        /// The type of gesture (e.g. "workspace-swipe", "overview-swipe").
+        gesture: String,
+        /// The phase of the gesture ("begin", "update", "end", "cancel").
+        phase: String,
+        /// Number of fingers involved.
+        fingers: u8,
+        /// Direction of movement ("horizontal", "vertical", "none").
+        direction: String,
+        /// Normalized progress (0.0 to 1.0).
+        progress: f64,
+        /// Velocity of the movement.
+        velocity: f64,
+    },
 }
 
 impl From<Duration> for Timestamp {

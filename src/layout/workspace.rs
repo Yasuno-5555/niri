@@ -46,7 +46,7 @@ use crate::window::ResolvedWindowRules;
 #[derive(Debug)]
 pub struct Workspace<W: LayoutElement> {
     /// The scrollable-tiling layout.
-    scrolling: ScrollingSpace<W>,
+    pub scrolling: ScrollingSpace<W>,
 
     /// The floating layout.
     floating: FloatingSpace<W>,

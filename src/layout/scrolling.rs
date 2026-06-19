@@ -50,7 +50,7 @@ pub struct ScrollingSpace<W: LayoutElement> {
     /// Any gaps, including left padding from work area left exclusive zone, is handled
     /// with this view offset (rather than added as a constant elsewhere in the code). This allows
     /// for natural handling of fullscreen windows, which must ignore work area padding.
-    view_offset: ViewOffset,
+    pub view_offset: ViewOffset,
 
     /// Whether to activate the previous, rather than the next, column upon column removal.
     ///
@@ -110,7 +110,7 @@ struct ColumnData {
 }
 
 #[derive(Debug)]
-pub(super) enum ViewOffset {
+pub enum ViewOffset {
     /// The view offset is static.
     Static(f64),
     /// The view offset is animating.
@@ -120,13 +120,13 @@ pub(super) enum ViewOffset {
 }
 
 #[derive(Debug)]
-pub(super) struct ViewGesture {
-    current_view_offset: f64,
+pub struct ViewGesture {
+    pub current_view_offset: f64,
     /// Animation for the extra offset to the current position.
     ///
     /// For example, when we need to activate a specific window during a DnD scroll.
     animation: Option<Animation>,
-    tracker: SwipeTracker,
+    pub tracker: SwipeTracker,
     delta_from_tracker: f64,
     // The view offset we'll use if needed for activate_prev_column_on_removal.
     stationary_view_offset: f64,
