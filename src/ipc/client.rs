@@ -67,6 +67,9 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
         Msg::LinkSessions => Request::LinkSessions,
         Msg::LinkGlobalWorkspace => Request::LinkGlobalWorkspace,
         Msg::LinkRemoteTiles => Request::LinkRemoteTiles,
+        Msg::SetPowerProfile { profile } => Request::SetPowerProfile {
+            profile: profile.clone(),
+        },
         Msg::Dispatch { args } => {
             let action = parse_dispatch(&args).context("error parsing dispatch command")?;
             Request::Action(action)
@@ -742,6 +745,13 @@ pub fn handle_msg(mut msg: Msg, json: bool) -> anyhow::Result<()> {
                 for tile in &tiles {
                     println!("{:?}", tile);
                 }
+            }
+        }
+        Msg::SetPowerProfile { profile } => {
+            if json {
+                println!("{}", serde_json::to_string(&json!({ "status": "ok", "profile": profile }))?);
+            } else {
+                println!("Power profile set to: {profile}");
             }
         }
     }

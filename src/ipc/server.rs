@@ -761,6 +761,19 @@ async fn process(ctx: &ClientCtx, request: Request) -> Reply {
                 .await
                 .map_err(|_| String::from("error setting pairing mode"))?
         }
+        Request::SetPowerProfile { profile } => {
+            let (tx, rx) = async_channel::bounded(1);
+            let profile_clone = profile.clone();
+            ctx.event_loop.insert_idle(move |state| {
+                println!("niri-cidre IPC: setting power profile to {profile_clone}");
+                state.niri.adaptive_power_profile = Some(profile_clone);
+                state.niri.reconcile_adaptive_animation_profile();
+                let _ = tx.send_blocking(Response::Handled);
+            });
+            rx.recv()
+                .await
+                .map_err(|_| String::from("error setting power profile"))?
+        }
     };
 
     Ok(response)

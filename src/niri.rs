@@ -379,7 +379,6 @@ pub struct Niri {
     pub pointer_visibility: PointerVisibility,
     pub pointer_inactivity_timer: Option<RegistrationToken>,
     pub adaptive_animation_profile_timer: Option<RegistrationToken>,
-    #[cfg(feature = "dbus")]
     pub adaptive_power_profile: Option<String>,
     #[cfg(feature = "dbus")]
     pub adaptive_battery_state: Option<BatteryState>,
@@ -2759,7 +2758,6 @@ impl Niri {
             pointer_visibility: PointerVisibility::Visible,
             pointer_inactivity_timer: None,
             adaptive_animation_profile_timer: None,
-            #[cfg(feature = "dbus")]
             adaptive_power_profile: None,
             #[cfg(feature = "dbus")]
             adaptive_battery_state: None,
@@ -7363,6 +7361,8 @@ impl Niri {
 
         let desired_profile = {
             let config = self.config.borrow();
+            let mut resolved = None;
+
             #[cfg(feature = "dbus")]
             if let Some(battery_state) = self.adaptive_battery_state.as_ref() {
                 let mapped = if battery_state.low_battery {
@@ -7373,81 +7373,39 @@ impl Niri {
                     None
                 };
                 if let Some(profile) = Self::validated_animation_profile_name(&config, mapped) {
-                    Some(profile)
-                } else if let Some(power_profile) = self.adaptive_power_profile.as_deref() {
+                    resolved = Some(profile);
+                }
+            }
+
+            if resolved.is_none() {
+                if let Some(power_profile) = self.adaptive_power_profile.as_deref() {
                     let mapped = match power_profile {
-                        "power-saver" => config.adaptive_animation_profile.power_saver.as_deref(),
+                        "power-saver" | "powersaver" => config.adaptive_animation_profile.power_saver.as_deref(),
                         "balanced" => config.adaptive_animation_profile.balanced.as_deref(),
                         "performance" => config.adaptive_animation_profile.performance.as_deref(),
                         _ => None,
                     };
                     if let Some(profile) = Self::validated_animation_profile_name(&config, mapped) {
-                        Some(profile)
-                    } else if self.adaptive_animation_profile_timer.is_some() {
-                        Self::validated_animation_profile_name(
-                            &config,
-                            config.adaptive_animation_profile.active.as_deref(),
-                        )
-                    } else {
-                        Self::validated_animation_profile_name(
-                            &config,
-                            config.adaptive_animation_profile.idle.as_deref(),
-                        )
+                        resolved = Some(profile);
                     }
-                } else if self.adaptive_animation_profile_timer.is_some() {
-                    Self::validated_animation_profile_name(
+                }
+            }
+
+            if resolved.is_none() {
+                if self.adaptive_animation_profile_timer.is_some() {
+                    resolved = Self::validated_animation_profile_name(
                         &config,
                         config.adaptive_animation_profile.active.as_deref(),
-                    )
+                    );
                 } else {
-                    Self::validated_animation_profile_name(
+                    resolved = Self::validated_animation_profile_name(
                         &config,
                         config.adaptive_animation_profile.idle.as_deref(),
-                    )
+                    );
                 }
-            } else if let Some(power_profile) = self.adaptive_power_profile.as_deref() {
-                let mapped = match power_profile {
-                    "power-saver" => config.adaptive_animation_profile.power_saver.as_deref(),
-                    "balanced" => config.adaptive_animation_profile.balanced.as_deref(),
-                    "performance" => config.adaptive_animation_profile.performance.as_deref(),
-                    _ => None,
-                };
-                if let Some(profile) = Self::validated_animation_profile_name(&config, mapped) {
-                    Some(profile)
-                } else if self.adaptive_animation_profile_timer.is_some() {
-                    Self::validated_animation_profile_name(
-                        &config,
-                        config.adaptive_animation_profile.active.as_deref(),
-                    )
-                } else {
-                    Self::validated_animation_profile_name(
-                        &config,
-                        config.adaptive_animation_profile.idle.as_deref(),
-                    )
-                }
-            } else if self.adaptive_animation_profile_timer.is_some() {
-                Self::validated_animation_profile_name(
-                    &config,
-                    config.adaptive_animation_profile.active.as_deref(),
-                )
-            } else {
-                Self::validated_animation_profile_name(
-                    &config,
-                    config.adaptive_animation_profile.idle.as_deref(),
-                )
             }
-            #[cfg(not(feature = "dbus"))]
-            if self.adaptive_animation_profile_timer.is_some() {
-                Self::validated_animation_profile_name(
-                    &config,
-                    config.adaptive_animation_profile.active.as_deref(),
-                )
-            } else {
-                Self::validated_animation_profile_name(
-                    &config,
-                    config.adaptive_animation_profile.idle.as_deref(),
-                )
-            }
+
+            resolved
         };
 
         self.set_animation_profile_override(desired_profile);

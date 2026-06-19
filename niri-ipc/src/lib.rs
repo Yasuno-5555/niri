@@ -189,6 +189,11 @@ pub enum Request {
         /// Whether pairing mode should be enabled.
         enabled: bool,
     },
+    /// Set power profile dynamically from shell.
+    SetPowerProfile {
+        /// The power profile name (e.g. "normal", "battery", "powersaver", "thermal").
+        profile: String,
+    },
 }
 
 /// Request sub-actions for Rhai scripting.

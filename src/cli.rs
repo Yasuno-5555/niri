@@ -143,6 +143,12 @@ pub enum Msg {
     LinkGlobalWorkspace,
     /// List current remote tiles.
     LinkRemoteTiles,
+    /// Set power profile dynamically from shell.
+    SetPowerProfile {
+        /// Power profile name (e.g. "normal", "battery", "powersaver", "thermal").
+        #[arg()]
+        profile: String,
+    },
     /// Execute a Hyprland-compatible dispatch command.
     Dispatch {
         /// The dispatch command and arguments.
